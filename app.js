@@ -614,10 +614,11 @@ function renderPolesTable() {
                </button>` 
             : '<span class="text-slate-300 text-[10px]">-</span>'}
         </td>
-        <td class="px-3 py-2.5 text-[10px] text-slate-600 whitespace-nowrap">
+        <td class="px-3 py-2.5 text-[10px] text-slate-600">
           ${item.crew 
             ? `<div><span class="font-bold text-slate-800">${escapeHtml(item.crew)}</span> <span class="text-slate-400">(${dateDisplay})</span></div>` 
-            : '<span class="text-slate-300 italic">-</span>'}
+            : '<span class="text-slate-300 italic">Sin cuadrilla</span>'}
+          ${item.installNotes ? `<div class="text-[10px] text-indigo-700 font-semibold mt-0.5 max-w-xs truncate" title="${escapeHtml(item.installNotes)}">📝 ${escapeHtml(item.installNotes)}</div>` : ''}
         </td>
         <td class="px-3 py-2.5 text-right whitespace-nowrap">
           <button onclick="handleOpenSingleInstallModal('${item.id}')" class="px-2.5 py-1 text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg shadow-2xs transition flex items-center gap-1 ml-auto">
@@ -657,6 +658,13 @@ function renderPolesTable() {
             ${photosCount > 0 ? `<span class="ml-1.5 font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">📸 ${photosCount}</span>` : ''}
           </div>
         </div>
+
+        ${item.installNotes ? `
+          <div class="text-[11px] text-indigo-950 bg-indigo-50 p-2 rounded-lg border border-indigo-200 font-medium">
+            <span class="font-bold text-indigo-700 block text-[10px] uppercase tracking-wide">📝 Observaciones / Descripción:</span>
+            <span>${escapeHtml(item.installNotes)}</span>
+          </div>
+        ` : ''}
 
         <div class="grid grid-cols-2 gap-2 pt-0.5">
           <button onclick="handleOpenSingleInstallModal('${item.id}')" class="py-2.5 px-3 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-95">
