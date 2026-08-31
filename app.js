@@ -2492,11 +2492,7 @@ window.handlePushDataToCloud = async function(silent = false) {
 
     await fetch(NTFY_SYNC_URL, {
       method: 'POST',
-      body: payloadStr,
-      headers: {
-        'Title': 'PosteTrack Sync',
-        'Tags': 'package'
-      }
+      body: payloadStr
     });
 
     const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
