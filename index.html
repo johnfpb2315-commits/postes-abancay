@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PosteTrack Pro | Control de Obra UTM, Reportes y Google Maps</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- SheetJS (XLSX) para exportación a Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <!-- PWA & Mobile App Meta Tags -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PosteTrack">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='128' fill='%230f172a'/%3E%3Ccircle cx='256' cy='256' r='180' fill='%2316a34a' opacity='0.15'/%3E%3Cpath d='M256 90 L256 422 M160 170 L352 170 M180 240 L332 240 M200 310 L312 310' stroke='%2322c55e' stroke-width='28' stroke-linecap='round'/%3E%3Ccircle cx='256' cy='90' r='24' fill='%23f59e0b'/%3E%3Ccircle cx='160' cy='170' r='16' fill='%2338bdf8'/%3E%3Ccircle cx='352' cy='170' r='16' fill='%2338bdf8'/%3E%3C/svg%3E">
+
+  <!-- Leaflet CSS & JS para Mapa Georreferenciado Satelital y Calles -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- jsPDF & AutoTable para Descarga Oficial de Reportes en PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="min-h-full text-slate-800 flex flex-col antialiased selection:bg-brand-500 selection:text-white font-sans touch-manipulation pb-20 sm:pb-0">
+
+  <!-- Encabezado / Navbar Adaptado a Celular y PC -->
+  <header class="bg-slate-900 text-white sticky top-0 z-40 shadow-lg border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 flex justify-between items-center gap-2">
+      
+      <!-- Brand & Info -->
+      <div class="flex items-center space-x-2.5">
+        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center shadow-md shadow-brand-500/20 shrink-0">
+          <i data-lucide="tower-control" class="w-4 h-4 sm:w-5 sm:h-5 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <h1 class="text-sm sm:text-base font-black tracking-tight text-white">PosteTrack Pro</h1>
+            <span class="text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+              Abancay
+            </span>
+          </div>
+          <p class="text-[10px] sm:text-[11px] text-slate-400">524 Postes (9m) + 131 Cámaras (13m)</p>
+        </div>
+      </div>
+
+      <!-- Quick Action Buttons Header (Siempre Visibles en PC y Móvil) -->
+      <div class="flex items-center gap-1 sm:gap-1.5">
+        
+        <!-- Botón Instalar en Celular (PWA) -->
+        <button id="btnInstallAppPrompt" onclick="handleInstallAppClick()" class="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl transition shadow-md shadow-emerald-400/20 active:scale-95 animate-pulse" title="Instalar aplicación en celular">
+          <i data-lucide="smartphone" class="w-3.5 h-3.5 text-emerald-950"></i>
+          <span class="hidden md:inline">Instalar en Celular</span>
+          <span class="md:hidden">Instalar</span>
+        </button>
+
+        <!-- Botón Sincronizar Nube / PC ↔ Celular -->
+        <button id="btnOpenSyncModal" onclick="handleOpenSyncModal()" class="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-indigo-100 bg-indigo-600 hover:bg-indigo-500 rounded-xl transition shadow-md shadow-indigo-600/30 active:scale-95" title="Sincronizar datos entre Celular y Computadora">
+          <i data-lucide="cloud-sync" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-200"></i>
+          <span>Sincronizar</span>
+        </button>
+
+        <!-- Botón Ver Plano GPS -->
+        <button id="btnOpenMapModal" onclick="handleOpenMapModal()" class="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-sky-100 bg-sky-600 hover:bg-sky-500 rounded-xl transition shadow-md shadow-sky-600/30 active:scale-95">
+          <i data-lucide="map" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white"></i>
+          <span class="hidden sm:inline">Plano GPS</span>
+        </button>
+
+        <!-- Botón Ver Reportes Formales -->
+        <button id="btnOpenReportsModal" onclick="handleOpenReportsModal()" class="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-amber-100 bg-amber-600 hover:bg-amber-500 rounded-xl transition shadow-md shadow-amber-600/30 active:scale-95">
+          <i data-lucide="bar-chart-3" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white"></i>
+          <span class="hidden sm:inline">Reportes</span>
+        </button>
+
+        <!-- Botón Llenar por Rango -->
+        <button id="btnOpenBatchInstallModal" onclick="handleOpenBatchModal()" class="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-purple-100 bg-purple-700 hover:bg-purple-600 rounded-xl transition shadow-md shadow-purple-700/30 active:scale-95 hidden md:flex">
+          <i data-lucide="layers" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-200"></i>
+          <span>Rango</span>
+        </button>
+
+        <!-- Botón Ajustes -->
+        <button id="btnOpenConfig" onclick="handleOpenConfigModal()" class="p-1.5 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition border border-slate-700" title="Ajustes y Respaldo">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+        </button>
+      </div>
+  </header>
+
+  <!-- Barra de Estado de Sincronización en Tiempo Real (En Vivo) -->
+  <div id="barLiveSyncStatus" class="bg-slate-950 text-indigo-200 border-b border-indigo-900/60 px-3 sm:px-6 py-1.5 text-xs flex justify-between items-center transition shadow-inner">
+    <div class="flex items-center gap-2">
+      <span class="relative flex h-2.5 w-2.5">
+        <span id="pingLiveSync" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+        <span id="dotLiveSync" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+      </span>
+      <span id="txtLiveSyncLabel" class="font-bold text-[11px] text-white">
+        🟢 Auto-Sincronización en Tiempo Real:
+      </span>
+      <span id="txtLiveSyncStatusDetail" class="text-[10px] sm:text-[11px] text-emerald-300 font-medium">
+        En línea con celulares (Canal: <span id="txtDisplaySyncChannel" class="font-mono font-bold text-amber-300">ABANCAY-SEGURIDAD-2026</span>)
+      </span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span id="txtLiveSyncLastPing" class="text-[10px] text-slate-400 font-mono hidden sm:inline">
+        Actualizando automáticamente...
+      </span>
+      <button onclick="handleTriggerManualSync()" class="px-2 py-0.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white font-bold text-[10px] transition flex items-center gap-1 shadow-xs active:scale-95" title="Sincronizar inmediatamente">
+        <i data-lucide="refresh-cw" id="iconSyncSpinner" class="w-3 h-3"></i>
+        <span>Sincronizar Ya</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Contenedor Principal -->
+  <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3.5 w-full flex-1 space-y-3.5">
+
+    <!-- BOTONES DESTACADOS DE FILTRADO RÁPIDO POR TIPO (9m y 13m) -->
+    <div class="bg-white rounded-2xl p-2.5 sm:p-3 border border-slate-200 shadow-xs space-y-2">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1">
+          <i data-lucide="filter" class="w-3.5 h-3.5 text-slate-400"></i>
+          Filtrar Padrón de Obra:
+        </span>
+        <div id="txtActiveFilterIndicator" class="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+          Todos (655)
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
+        <!-- Botón Ver Todos -->
+        <button id="btnFilterTypeAll" onclick="setTypeFilter('all')" class="flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 text-center text-xs font-black rounded-xl bg-slate-900 text-white shadow-sm transition active:scale-95">
+          <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
+          <span>Todos (655)</span>
+        </button>
+
+        <!-- Botón Postes 9 Metros -->
+        <button id="btnFilterType9m" onclick="setTypeFilter('9m')" class="flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 text-center text-xs font-black rounded-xl bg-emerald-50 text-emerald-800 border-2 border-emerald-400 hover:bg-emerald-100 transition shadow-xs active:scale-95">
+          <i data-lucide="tower-control" class="w-3.5 h-3.5 text-emerald-600"></i>
+          <span>🏗️ 9m (524)</span>
+        </button>
+
+        <!-- Botón Postes 13 Metros (Cámaras) -->
+        <button id="btnFilterType13m" onclick="setTypeFilter('13m')" class="flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 text-center text-xs font-black rounded-xl bg-indigo-50 text-indigo-800 border-2 border-indigo-400 hover:bg-indigo-100 transition shadow-xs active:scale-95">
+          <i data-lucide="video" class="w-3.5 h-3.5 text-indigo-600"></i>
+          <span>📹 13m (131)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Tarjetas de Reporte por Etapa de Construcción (KPIs de Obra) -->
+    <div>
+      <div class="flex items-center justify-between mb-1.5 px-1">
+        <h2 class="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1">
+          <i data-lucide="activity" class="w-3.5 h-3.5 text-slate-500"></i>
+          Etapas de Construcción en Terreno
+        </h2>
+        <div class="flex items-center gap-1.5">
+          <button onclick="handleOpenReportsModal()" class="text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-lg border border-amber-300 transition flex items-center gap-1">
+            <i data-lucide="file-text" class="w-3 h-3 text-amber-700"></i>
+            <span>Ver Reporte Completo</span>
+          </button>
+          <span id="txtTotalPhotosCount" class="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 flex items-center gap-1">
+            <i data-lucide="camera" class="w-3 h-3"></i>
+            <span>0 fotos</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        
+        <!-- 1. TERMINADOS (VERDE) -->
+        <div class="bg-gradient-to-br from-emerald-500/15 via-white to-emerald-50 rounded-xl p-2.5 border-2 border-emerald-400 shadow-xs flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition" onclick="filterByStage('terminado')">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-extrabold uppercase text-emerald-800 tracking-wider">Terminados</span>
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-200"></span>
+          </div>
+          <div class="my-0.5">
+            <span id="kpiTerminados" class="text-xl sm:text-2xl font-black text-emerald-600">0</span>
+            <span class="text-[9px] text-slate-500 font-bold block">listos</span>
+          </div>
+          <div class="text-[9px] font-bold text-emerald-800 bg-emerald-100/80 py-0.5 rounded text-center">
+            🟢 Verde en Plano
+          </div>
+        </div>
+
+        <!-- 2. IZADO SIN SOLADO (AZUL) -->
+        <div class="bg-gradient-to-br from-sky-500/10 via-white to-sky-50 rounded-xl p-2.5 border border-sky-300 shadow-xs flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition" onclick="filterByStage('izado_sin_solado')">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-extrabold uppercase text-sky-800 tracking-wider">Izado s/ Solado</span>
+            <span class="w-2.5 h-2.5 rounded-full bg-sky-500 ring-2 ring-sky-200"></span>
+          </div>
+          <div class="my-0.5">
+            <span id="kpiIzadoSinSolado" class="text-xl sm:text-2xl font-black text-sky-600">0</span>
+            <span class="text-[9px] text-slate-500 font-bold block">plantados</span>
+          </div>
+          <div class="text-[9px] font-bold text-sky-800 bg-sky-100/80 py-0.5 rounded text-center">
+            🔵 Azul en Plano
+          </div>
+        </div>
+
+        <!-- 3. FALTA SOLADO (MORADO) -->
+        <div class="bg-gradient-to-br from-purple-500/10 via-white to-purple-50 rounded-xl p-2.5 border border-purple-300 shadow-xs flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition" onclick="filterByStage('falta_solado')">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-extrabold uppercase text-purple-800 tracking-wider">Falta Solado</span>
+            <span class="w-2.5 h-2.5 rounded-full bg-purple-500 ring-2 ring-purple-200"></span>
+          </div>
+          <div class="my-0.5">
+            <span id="kpiFaltaSolado" class="text-xl sm:text-2xl font-black text-purple-600">0</span>
+            <span class="text-[9px] text-slate-500 font-bold block">por vaciar</span>
+          </div>
+          <div class="text-[9px] font-bold text-purple-800 bg-purple-100/80 py-0.5 rounded text-center">
+            🟣 Morado en Plano
+          </div>
+        </div>
+
+        <!-- 4. EXCAVADOS (AMARILLO) -->
+        <div class="bg-gradient-to-br from-yellow-500/10 via-white to-yellow-50 rounded-xl p-2.5 border border-yellow-300 shadow-xs flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition" onclick="filterByStage('excavado')">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-extrabold uppercase text-yellow-800 tracking-wider">Excavados</span>
+            <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 ring-2 ring-yellow-200"></span>
+          </div>
+          <div class="my-0.5">
+            <span id="kpiExcavados" class="text-xl sm:text-2xl font-black text-yellow-600">0</span>
+            <span class="text-[9px] text-slate-500 font-bold block">pozas listas</span>
+          </div>
+          <div class="text-[9px] font-bold text-yellow-800 bg-yellow-100/80 py-0.5 rounded text-center">
+            🟡 Amarillo en Plano
+          </div>
+        </div>
+
+        <!-- 5. EN CORTE (NARANJA) -->
+        <div class="bg-gradient-to-br from-orange-500/10 via-white to-orange-50 rounded-xl p-2.5 border border-orange-300 shadow-xs flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition" onclick="filterByStage('corte')">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-extrabold uppercase text-orange-800 tracking-wider">En Corte</span>
+            <span class="w-2.5 h-2.5 rounded-full bg-orange-500 ring-2 ring-orange-200"></span>
+          </div>
+          <div class="my-0.5">
+            <span id="kpiEnCorte" class="text-xl sm:text-2xl font-black text-orange-600">0</span>
+            <span class="text-[9px] text-slate-500 font-bold block">trazados</span>
+          </div>
+          <div class="text-[9px] font-bold text-orange-800 bg-orange-100/80 py-0.5 rounded text-center">
+            🟧 Naranja en Plano
+          </div>
+        </div>
+
+        <!-- 6. PENDIENTES / SIN INICIAR (GRIS) -->
+        <div class="bg-gradient-to-br from-slate-200/50 via-white to-slate-100 rounded-xl p-2.5 border border-slate-300 shadow-xs flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition" onclick="filterByStage('pendiente')">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-extrabold uppercase text-slate-600 tracking-wider">Sin Iniciar</span>
+            <span class="w-2.5 h-2.5 rounded-full bg-slate-400 ring-2 ring-slate-200"></span>
+          </div>
+          <div class="my-0.5">
+            <span id="kpiPendientes" class="text-xl sm:text-2xl font-black text-slate-700">655</span>
+            <span class="text-[9px] text-slate-500 font-bold block">pendientes</span>
+          </div>
+          <div class="text-[9px] font-bold text-slate-600 bg-slate-200/80 py-0.5 rounded text-center">
+            ⚪ Gris en Plano
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Barra de Avance Global 9m y 13m -->
+    <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
+      <div class="flex flex-wrap justify-between items-center gap-1 mb-2">
+        <div class="flex items-center gap-1.5">
+          <span class="text-[11px] font-bold uppercase text-slate-700">Avance General</span>
+          <span id="badgeGlobalPct" class="px-2 py-0.2 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+            0.0% Terminado
+          </span>
+        </div>
+        <div class="text-[10px] font-bold text-slate-600 flex items-center gap-2">
+          <span class="text-emerald-700">🏗️ 9m: <strong id="txtProgress9m">0 / 524</strong></span>
+          <span class="text-indigo-700">📹 13m: <strong id="txtProgress13m">0 / 131</strong></span>
+        </div>
+      </div>
+
+      <!-- Barra multi-etapas -->
+      <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex border border-slate-200 shadow-inner">
+        <div id="barTerminados" class="bg-emerald-500 h-full transition-all duration-500" style="width: 0%" title="Terminados"></div>
+        <div id="barIzado" class="bg-sky-500 h-full transition-all duration-500" style="width: 0%" title="Izado sin solado"></div>
+        <div id="barFaltaSolado" class="bg-purple-500 h-full transition-all duration-500" style="width: 0%" title="Falta solado"></div>
+        <div id="barExcavados" class="bg-yellow-500 h-full transition-all duration-500" style="width: 0%" title="Excavados"></div>
+        <div id="barCorte" class="bg-orange-500 h-full transition-all duration-500" style="width: 0%" title="En corte"></div>
+      </div>
+    </div>
+
+    <!-- Padrón de Postes y Cámaras con Google Maps -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      
+      <!-- Barra de Filtros y Control -->
+      <div class="p-3 sm:p-4 border-b border-slate-200 bg-slate-50/70 space-y-2.5">
+        <div class="flex flex-wrap justify-between items-center gap-2">
+          <div>
+            <h2 class="text-sm sm:text-base font-bold text-slate-800 flex items-center gap-1.5">
+              <i data-lucide="list-checks" class="w-4 h-4 text-emerald-600"></i>
+              Llenado de Datos & GPS Google Maps
+            </h2>
+            <p class="text-[11px] text-slate-500">Toca cualquier punto para actualizar su avance o abrirlo en Google Maps</p>
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            <button onclick="handleOpenReportsModal()" class="px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-xl transition flex items-center gap-1">
+              <i data-lucide="pie-chart" class="w-3.5 h-3.5"></i> Reportes
+            </button>
+            <button onclick="handleOpenBatchModal()" class="px-2.5 py-1 text-xs font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 border border-purple-300 rounded-xl transition flex items-center gap-1">
+              <i data-lucide="layers" class="w-3.5 h-3.5"></i> Actualizar por Lote
+            </button>
+          </div>
+        </div>
+
+        <!-- Filtros Secundarios -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 pt-0.5">
+          <!-- Búsqueda -->
+          <div class="relative">
+            <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="text" id="inputSearchPole" placeholder="Buscar (ej. P01, C05, POSTE 10)..." class="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+          </div>
+
+          <!-- Filtro por Etapa -->
+          <div>
+            <select id="selectStageFilter" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white text-slate-700 font-medium">
+              <option value="all">Todas las Etapas</option>
+              <option value="terminado">🟢 Solo Terminados</option>
+              <option value="izado_sin_solado">🔵 Solo Izado s/ Solado</option>
+              <option value="falta_solado">🟣 Solo Falta Solado</option>
+              <option value="excavado">🟡 Solo Excavados</option>
+              <option value="corte">🟧 Solo En Corte</option>
+              <option value="pendiente">⚪ Solo Sin Iniciar</option>
+            </select>
+          </div>
+
+          <!-- Filtro Cuadrilla -->
+          <div>
+            <select id="selectCrewFilter" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white text-slate-700">
+              <option value="">Todas las Cuadrillas</option>
+            </select>
+          </div>
+
+          <!-- Limpiar Filtros -->
+          <div>
+            <button id="btnResetFilters" onclick="handleResetFilters()" class="w-full py-1.5 px-3 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded-xl shadow-2xs hover:bg-slate-50 transition flex items-center justify-center gap-1">
+              <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+              Limpiar Filtros
+            </button>
+        <!-- Barra de Cambio de Vista (Tarjetas Móvil vs Tabla) -->
+        <div class="flex justify-between items-center pt-1 border-t border-slate-200 text-xs">
+          <div class="flex items-center gap-1 font-bold text-slate-600">
+            <i data-lucide="smartphone" class="w-3.5 h-3.5 text-slate-500 sm:hidden"></i>
+            <span class="sm:hidden text-[11px]">Vista para Celular</span>
+            <span class="hidden sm:inline text-[11px]">Modo de Visualización:</span>
+          </div>
+          <div class="flex items-center bg-slate-200/80 p-0.5 rounded-xl border border-slate-300">
+            <button id="btnViewModeCards" onclick="switchPolesViewMode('cards')" class="px-2.5 py-1 rounded-lg font-bold text-[11px] bg-white text-slate-900 shadow-xs transition flex items-center gap-1">
+              <i data-lucide="layout-grid" class="w-3 h-3 text-emerald-600"></i>
+              <span>Tarjetas</span>
+            </button>
+            <button id="btnViewModeTable" onclick="switchPolesViewMode('table')" class="px-2.5 py-1 rounded-lg font-bold text-[11px] text-slate-600 hover:text-slate-900 transition flex items-center gap-1">
+              <i data-lucide="table" class="w-3 h-3 text-indigo-600"></i>
+              <span>Tabla</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vista 1: Tarjetas Móvil (Recomendada para Celulares en Campo) -->
+      <div id="containerMobilePolesCards" class="p-2 sm:p-3 space-y-2 max-h-[550px] overflow-y-auto bg-slate-50/50">
+        <!-- Tarjetas dinámicas de postes -->
+      </div>
+
+      <!-- Vista 2: Tabla Clásica para Computadora -->
+      <div id="containerDesktopPolesTable" class="overflow-x-auto max-h-[500px] overflow-y-auto hidden">
+        <table class="w-full text-left text-xs text-slate-600">
+          <thead class="bg-slate-100/95 text-slate-700 uppercase font-bold text-[10px] tracking-wider sticky top-0 z-10 border-b border-slate-200 shadow-2xs">
+            <tr>
+              <th scope="col" class="px-3 py-2.5">Código</th>
+              <th scope="col" class="px-3 py-2.5">Tipo</th>
+              <th scope="col" class="px-3 py-2.5 text-center">Google Maps</th>
+              <th scope="col" class="px-3 py-2.5 text-center">Etapa Actual</th>
+              <th scope="col" class="px-3 py-2.5 text-center">Fotos</th>
+              <th scope="col" class="px-3 py-2.5">Cuadrilla / Fecha</th>
+              <th scope="col" class="px-3 py-2.5 text-right">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tablePolesBody" class="divide-y divide-slate-100">
+            <!-- Filas dinámicas -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Barra de Resumen de la Tabla -->
+      <div class="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-1.5">
+        <div id="tablePolesSummary">Mostrando 0 de 655</div>
+        <div id="txtFilteredSummary" class="text-slate-600 font-bold">0 elementos</div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ==================================================== -->
+  <!-- MODAL: CENTRO DE REPORTES FORMAL DE OBRA             -->
+  <!-- ==================================================== -->
+  <div id="modalReports" class="fixed inset-0 bg-slate-900/80 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-5xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-scaleUp max-h-[95vh] flex flex-col">
+      
+      <!-- Header Reportes con Título Institucional -->
+      <div class="px-5 py-3.5 bg-slate-900 text-white flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 bg-amber-500/20 text-amber-400 rounded-xl">
+            <i data-lucide="file-check" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-sm sm:text-base font-black tracking-tight uppercase text-amber-300">
+              Reporte de Estado Situacional de Instalación de Postes
+            </h3>
+            <p class="text-[10px] sm:text-[11px] text-slate-300 font-medium line-clamp-1">
+              Proyecto: Mejoramiento del Servicio de Seguridad Ciudadana en el Distrito de Abancay, Provincia de Abancay - Apurímac
+            </p>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-2 shrink-0">
+          <button onclick="window.print()" class="px-3 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition flex items-center gap-1 border border-slate-700" title="Imprimir reporte">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Imprimir</span>
+          </button>
+          <button onclick="handleExportPDF(true)" class="px-3 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-xl transition flex items-center gap-1 shadow-xs" title="Descargar reporte oficial en formato PDF">
+            <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+            <span>PDF</span>
+          </button>
+          <button onclick="handleExportExcel(true)" class="px-3 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition flex items-center gap-1 shadow-xs" title="Exportar reporte de estado situacional a Excel">
+            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+            <span>Excel</span>
+          </button>
+          <button onclick="handleExportExcel(false)" class="px-3 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition hidden md:flex items-center gap-1 border border-slate-700" title="Exportar padrón completo a Excel">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>Padrón Completo</span>
+          </button>
+          <button onclick="handleCloseReportsModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Contenido del Reporte -->
+      <div class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 print:p-0">
+        
+        <!-- Panel de Selección Múltiple de Opciones del Reporte -->
+        <div class="bg-slate-100 p-3 sm:p-4 rounded-2xl border border-slate-200 space-y-3 print:hidden">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+            <span class="text-xs font-black uppercase text-slate-800 flex items-center gap-1.5">
+              <i data-lucide="check-square" class="w-4 h-4 text-emerald-600"></i>
+              Selección Múltiple de Opciones para el Reporte:
+            </span>
+            <div class="flex items-center gap-1.5">
+              <button type="button" onclick="handleSelectAllReportOptions()" class="text-xs font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-100 hover:bg-emerald-200 px-2.5 py-1 rounded-lg border border-emerald-300 transition flex items-center gap-1 shadow-2xs">
+                <i data-lucide="check-check" class="w-3 h-3"></i>
+                Seleccionar Todo
+              </button>
+              <button type="button" onclick="handleResetReportFilters()" class="text-xs font-bold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-300 shadow-2xs transition flex items-center gap-1">
+                <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                Restablecer
+              </button>
+            </div>
+          </div>
+
+          <!-- 1. Multi-selección de Etapas de Obra -->
+          <div class="space-y-1.5">
+            <div class="flex flex-wrap items-center justify-between gap-1">
+              <label class="text-[11px] font-black uppercase tracking-wider text-slate-700">
+                1. Etapas de Obra (Marca las opciones a incluir):
+              </label>
+              <div class="flex items-center gap-1.5 text-[10px]">
+                <button type="button" onclick="handleSelectAllStages(true)" class="text-indigo-600 hover:underline font-bold">Todas</button>
+                <span class="text-slate-300">|</span>
+                <button type="button" onclick="handleSelectInProgressStages()" class="text-amber-700 hover:underline font-bold">Solo en Proceso</button>
+                <span class="text-slate-300">|</span>
+                <button type="button" onclick="handleSelectAllStages(false)" class="text-slate-500 hover:underline font-bold">Ninguna</button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5" id="repStageCheckboxesContainer">
+              <!-- Terminado -->
+              <label class="flex items-center gap-1.5 p-2 rounded-xl border-2 border-emerald-300 bg-white cursor-pointer hover:bg-emerald-50 transition shadow-2xs select-none">
+                <input type="checkbox" id="chkStage_terminado" value="terminado" checked onchange="handleReportCheckboxChange()" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                <span class="text-[11px] font-bold text-emerald-950 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                  🟢 Terminado
+                </span>
+              </label>
+
+              <!-- Izado -->
+              <label class="flex items-center gap-1.5 p-2 rounded-xl border-2 border-sky-300 bg-white cursor-pointer hover:bg-sky-50 transition shadow-2xs select-none">
+                <input type="checkbox" id="chkStage_izado_sin_solado" value="izado_sin_solado" checked onchange="handleReportCheckboxChange()" class="w-4 h-4 rounded text-sky-600 focus:ring-sky-500">
+                <span class="text-[11px] font-bold text-sky-950 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-sky-500 shrink-0"></span>
+                  🔵 Izado
+                </span>
+              </label>
+
+              <!-- Falta Solado -->
+              <label class="flex items-center gap-1.5 p-2 rounded-xl border-2 border-purple-300 bg-white cursor-pointer hover:bg-purple-50 transition shadow-2xs select-none">
+                <input type="checkbox" id="chkStage_falta_solado" value="falta_solado" checked onchange="handleReportCheckboxChange()" class="w-4 h-4 rounded text-purple-600 focus:ring-purple-500">
+                <span class="text-[11px] font-bold text-purple-950 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
+                  🟣 Falta Solado
+                </span>
+              </label>
+
+              <!-- Excavado -->
+              <label class="flex items-center gap-1.5 p-2 rounded-xl border-2 border-yellow-300 bg-white cursor-pointer hover:bg-yellow-50 transition shadow-2xs select-none">
+                <input type="checkbox" id="chkStage_excavado" value="excavado" checked onchange="handleReportCheckboxChange()" class="w-4 h-4 rounded text-yellow-600 focus:ring-yellow-500">
+                <span class="text-[11px] font-bold text-yellow-950 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-yellow-500 shrink-0"></span>
+                  🟡 Excavado
+                </span>
+              </label>
+
+              <!-- En Corte -->
+              <label class="flex items-center gap-1.5 p-2 rounded-xl border-2 border-orange-300 bg-white cursor-pointer hover:bg-orange-50 transition shadow-2xs select-none">
+                <input type="checkbox" id="chkStage_corte" value="corte" checked onchange="handleReportCheckboxChange()" class="w-4 h-4 rounded text-orange-600 focus:ring-orange-500">
+                <span class="text-[11px] font-bold text-orange-950 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
+                  🟧 En Corte
+                </span>
+              </label>
+
+              <!-- Sin Iniciar -->
+              <label class="flex items-center gap-1.5 p-2 rounded-xl border-2 border-slate-300 bg-white cursor-pointer hover:bg-slate-50 transition shadow-2xs select-none">
+                <input type="checkbox" id="chkStage_pendiente" value="pendiente" checked onchange="handleReportCheckboxChange()" class="w-4 h-4 rounded text-slate-600 focus:ring-slate-500">
+                <span class="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-slate-400 shrink-0"></span>
+                  ⚪ Sin Iniciar
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 2. Tipo de Padrón, Cuadrillas y Fotos -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+            
+            <!-- Tipo de Elemento (9m y 13m) -->
+            <div class="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+              <label class="block text-[10px] font-black uppercase text-slate-700">
+                2. Tipos de Elemento a Incluir:
+              </label>
+              <div class="flex items-center gap-3 pt-0.5">
+                <label class="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer select-none">
+                  <input type="checkbox" id="chkType_9m" value="9m" checked onchange="handleReportCheckboxChange()" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                  <span>🏗️ Postes 9m (524)</span>
+                </label>
+                <label class="flex items-center gap-1.5 text-xs font-bold text-slate-800 cursor-pointer select-none">
+                  <input type="checkbox" id="chkType_13m" value="13m" checked onchange="handleReportCheckboxChange()" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                  <span>📹 Cámaras 13m (131)</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Cuadrilla / Técnico -->
+            <div class="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label class="block text-[10px] font-black uppercase text-slate-700">
+                  3. Cuadrilla / Técnico:
+                </label>
+                <button type="button" onclick="handleToggleCrewDropdown()" class="text-[10px] font-bold text-indigo-600 hover:underline">
+                  <span id="txtSelectedCrewsCount">Todas</span> ▾
+                </button>
+              </div>
+              
+              <div class="relative">
+                <select id="repFilterCrew" onchange="handleReportCrewSelectChange()" class="w-full px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="ALL">Todas las Cuadrillas</option>
+                </select>
+
+                <!-- Menú desplegable flotante de checkboxes para múltiples cuadrillas -->
+                <div id="repCrewMultiCheckboxesContainer" class="hidden absolute top-full left-0 right-0 mt-1 bg-white p-2.5 rounded-xl shadow-2xl border border-slate-200 z-30 max-h-48 overflow-y-auto space-y-1.5 text-xs">
+                  <!-- Generado dinámicamente -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Fotos de Evidencia -->
+            <div class="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+              <label for="repFilterPhotos" class="block text-[10px] font-black uppercase text-slate-700">
+                4. Fotos de Evidencia:
+              </label>
+              <select id="repFilterPhotos" onchange="handleReportCheckboxChange()" class="w-full px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="all">Todos (Con y Sin fotos)</option>
+                <option value="with_photos">📸 Solo con Fotos</option>
+                <option value="without_photos">Sin Fotos Adjuntas</option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Tarjeta de Resumen Ejecutivo General -->
+        <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
+          <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+            <h4 class="text-xs font-black uppercase text-slate-700 tracking-wider">Resumen de Datos Seleccionados</h4>
+            <span id="repGeneratedDate" class="text-xs text-slate-500 font-medium">Fecha: --</span>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+              <span class="text-xs text-slate-500 font-bold block">Puntos Seleccionados</span>
+              <span id="repTotalSeleccionados" class="text-2xl font-black text-slate-900">0</span>
+              <span id="repPctTotalPadrón" class="text-[10px] text-slate-400 block">de 655 totales</span>
+            </div>
+            <div class="bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs">
+              <span class="text-xs text-emerald-800 font-bold block">Terminados</span>
+              <span id="repTotalTerminados" class="text-2xl font-black text-emerald-600">0</span>
+              <span id="repPctTerminados" class="text-[10px] text-emerald-700 font-bold block">0.0%</span>
+            </div>
+            <div class="bg-white p-3 rounded-xl border border-sky-200 shadow-2xs">
+              <span class="text-xs text-sky-800 font-bold block">En Ejecución</span>
+              <span id="repTotalEnProceso" class="text-2xl font-black text-sky-600">0</span>
+              <span class="text-[10px] text-sky-700 font-bold block">Izados / Excavados / Corte</span>
+            </div>
+            <div class="bg-white p-3 rounded-xl border border-indigo-200 shadow-2xs">
+              <span class="text-xs text-indigo-800 font-bold block">Fotos de Evidencia</span>
+              <span id="repTotalFotos" class="text-2xl font-black text-indigo-600">0</span>
+              <span class="text-[10px] text-indigo-700 font-bold block">Registros gráficos</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla Desglose Detallado por Etapas 9m vs 13m -->
+        <div class="space-y-2">
+          <h4 class="text-xs font-black uppercase text-slate-700 tracking-wider">Desglose por Etapas Constructivas</h4>
+          <div class="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-bold uppercase text-[11px] border-b border-slate-200">
+                <tr>
+                  <th class="px-4 py-2.5">Etapa de Construcción</th>
+                  <th class="px-4 py-2.5 text-center">Postes 9m</th>
+                  <th class="px-4 py-2.5 text-center">Cámaras 13m</th>
+                  <th class="px-4 py-2.5 text-center">Total Puntos</th>
+                  <th class="px-4 py-2.5 text-right">% del Subconjunto</th>
+                </tr>
+              </thead>
+              <tbody id="repTableStagesBody" class="divide-y divide-slate-100 bg-white">
+                <!-- Dinámico -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Listado Detallado Filtrado por Opciones -->
+        <div class="space-y-2">
+          <div class="flex flex-wrap justify-between items-center gap-2">
+            <h4 class="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+              <i data-lucide="list" class="w-4 h-4 text-emerald-600"></i>
+              Detalle Individual de Puntos Filtrados
+            </h4>
+            <span id="repFilteredCountBadge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+              0 registros encontrados
+            </span>
+          </div>
+
+          <div class="overflow-x-auto max-h-[360px] overflow-y-auto rounded-xl border border-slate-200 shadow-2xs">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] border-b border-slate-200 sticky top-0 z-10 shadow-2xs">
+                <tr>
+                  <th class="px-2.5 py-2 text-center whitespace-nowrap">N°</th>
+                  <th class="px-3 py-2 whitespace-nowrap">Código</th>
+                  <th class="px-2.5 py-2 text-center whitespace-nowrap">Iniciales</th>
+                  <th class="px-3 py-2 whitespace-nowrap">Tipo</th>
+                  <th class="px-3 py-2 whitespace-nowrap">Coordenada Este (X)</th>
+                  <th class="px-3 py-2 whitespace-nowrap">Coordenada Norte (Y)</th>
+                  <th class="px-3 py-2 text-center whitespace-nowrap">Etapa de Obra</th>
+                  <th class="px-3 py-2 text-center whitespace-nowrap">Fecha</th>
+                  <th class="px-3 py-2 text-right whitespace-nowrap">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="repTableFilteredListBody" class="divide-y divide-slate-100 bg-white font-normal">
+                <!-- Dinámico -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Desglose por Cuadrilla / Contratista -->
+        <div class="space-y-2">
+          <h4 class="text-xs font-black uppercase text-slate-700 tracking-wider">Avance por Cuadrilla / Responsable</h4>
+          <div class="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-bold uppercase text-[11px] border-b border-slate-200">
+                <tr>
+                  <th class="px-4 py-2.5">Cuadrilla / Técnico</th>
+                  <th class="px-4 py-2.5 text-center">Postes 9m</th>
+                  <th class="px-4 py-2.5 text-center">Cámaras 13m</th>
+                  <th class="px-4 py-2.5 text-center">Terminados</th>
+                  <th class="px-4 py-2.5 text-right">Total Registrados</th>
+                </tr>
+              </thead>
+              <tbody id="repTableCrewsBody" class="divide-y divide-slate-100 bg-white">
+                <!-- Dinámico -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer Modal -->
+      <div class="px-5 py-3 bg-slate-100 border-t border-slate-200 flex flex-wrap justify-between items-center gap-2 shrink-0">
+        <span class="text-xs text-slate-500 font-medium">PosteTrack Pro • Sistema de Control de Obra UTM</span>
+        <div class="flex items-center gap-2">
+          <button onclick="handleExportPDF(true)" class="px-3 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-xl transition flex items-center gap-1 shadow-xs">
+            <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+            <span>Descargar PDF</span>
+          </button>
+          <button onclick="handleExportExcel(true)" class="px-3 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition flex items-center gap-1 shadow-xs">
+            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+            <span>Descargar Excel (.xlsx)</span>
+          </button>
+          <button onclick="handleCloseReportsModal()" class="px-4 py-1.5 text-xs font-bold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition">
+            Cerrar Reporte
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- MODAL: DETALLE, LLENADO Y GOOGLE MAPS GPS            -->
+  <!-- ==================================================== -->
+  <div id="modalSingleInstall" class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-scaleUp max-h-[96vh] flex flex-col">
+      
+      <!-- Modal Header con Navegación Rápida -->
+      <div class="px-4 py-3 bg-slate-900 text-white flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div id="badgeModalPoleType" class="p-1.5 rounded-xl text-xs font-black flex items-center gap-1 bg-emerald-500 text-white shadow-xs">
+            🏗️ 9m
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <h3 id="singleModalTitle" class="text-sm sm:text-base font-black">POSTE 01</h3>
+              <span id="singleModalShortName" class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-mono font-bold">P01</span>
+            </div>
+            <p id="singleModalSubtitle" class="text-[10px] text-slate-400 font-mono">UTM: X / Y</p>
+          </div>
+        </div>
+
+        <!-- Botones Anterior / Siguiente -->
+        <div class="flex items-center gap-1">
+          <button id="btnPrevPole" onclick="handlePrevPole()" type="button" class="p-1 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition" title="Anterior">
+            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+          </button>
+          <span id="txtPoleOrderNumber" class="text-[10px] font-mono font-bold text-slate-400 px-1">1/655</span>
+          <button id="btnNextPole" onclick="handleNextPole()" type="button" class="p-1 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition" title="Siguiente">
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+          </button>
+          <button id="btnCloseSingleModal" onclick="handleCloseSingleModal()" type="button" class="text-slate-400 hover:text-white p-1 rounded-lg ml-1">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Form & Content -->
+      <form id="formSingleInstall" class="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
+        <input type="hidden" id="singlePoleId">
+
+        <!-- BOTÓN DIRECTO GOOGLE MAPS GPS -->
+        <div class="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 p-2.5 rounded-xl border border-blue-200 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <i data-lucide="navigation" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <span class="text-xs font-bold text-blue-900 block leading-tight">Ubicación GPS Exacta</span>
+              <span id="txtModalGpsCoords" class="text-[10px] text-blue-700 font-mono">Lat / Lng</span>
+            </div>
+          </div>
+          
+          <a id="btnOpenGoogleMapsUrl" href="#" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 text-xs font-black text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-xs transition flex items-center gap-1 shrink-0 active:scale-95">
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+            <span>Google Maps</span>
+          </a>
+        </div>
+
+        <!-- Selector Rápido de Etapas con Botones de 1 Clic -->
+        <div>
+          <label class="block text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1.5">
+            Etapa de Obra (Toca para seleccionar):
+          </label>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5" id="stageButtonsContainer">
+            
+            <button type="button" data-stage="terminado" class="stage-btn p-2 rounded-xl border-2 border-emerald-400 bg-emerald-50 text-emerald-900 flex items-center gap-1.5 font-bold text-xs hover:bg-emerald-100 transition">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+              <span class="text-left leading-tight text-[11px]">🟢 Terminado<br><span class="text-[9px] font-normal text-emerald-700">Verde en Plano</span></span>
+            </button>
+
+            <button type="button" data-stage="izado_sin_solado" class="stage-btn p-2 rounded-xl border-2 border-sky-300 bg-sky-50 text-sky-900 flex items-center gap-1.5 font-bold text-xs hover:bg-sky-100 transition">
+              <span class="w-2.5 h-2.5 rounded-full bg-sky-500 shrink-0"></span>
+              <span class="text-left leading-tight text-[11px]">🔵 Izado s/ Solado<br><span class="text-[9px] font-normal text-sky-700">Plantado</span></span>
+            </button>
+
+            <button type="button" data-stage="falta_solado" class="stage-btn p-2 rounded-xl border-2 border-purple-300 bg-purple-50 text-purple-900 flex items-center gap-1.5 font-bold text-xs hover:bg-purple-100 transition">
+              <span class="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0"></span>
+              <span class="text-left leading-tight text-[11px]">🟣 Falta Solado<br><span class="text-[9px] font-normal text-purple-700">Por vaciar</span></span>
+            </button>
+
+            <button type="button" data-stage="excavado" class="stage-btn p-2 rounded-xl border-2 border-yellow-300 bg-yellow-50 text-yellow-900 flex items-center gap-1.5 font-bold text-xs hover:bg-yellow-100 transition">
+              <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 shrink-0"></span>
+              <span class="text-left leading-tight text-[11px]">🟡 Excavado<br><span class="text-[9px] font-normal text-yellow-700">Poza lista</span></span>
+            </button>
+
+            <button type="button" data-stage="corte" class="stage-btn p-2 rounded-xl border-2 border-orange-300 bg-orange-50 text-orange-900 flex items-center gap-1.5 font-bold text-xs hover:bg-orange-100 transition">
+              <span class="w-2.5 h-2.5 rounded-full bg-orange-500 shrink-0"></span>
+              <span class="text-left leading-tight text-[11px]">🟧 En Corte<br><span class="text-[9px] font-normal text-orange-700">Trazado</span></span>
+            </button>
+
+            <button type="button" data-stage="pendiente" class="stage-btn p-2 rounded-xl border-2 border-slate-300 bg-slate-50 text-slate-800 flex items-center gap-1.5 font-bold text-xs hover:bg-slate-100 transition">
+              <span class="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0"></span>
+              <span class="text-left leading-tight text-[11px]">⚪ Sin Iniciar<br><span class="text-[9px] font-normal text-slate-500">Pendiente</span></span>
+            </button>
+
+          </div>
+          <input type="hidden" id="singleStage" value="pendiente">
+        </div>
+
+        <!-- Cuadrilla y Fecha -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div>
+            <label for="singleCrew" class="block text-[11px] font-bold text-slate-700 mb-1">Cuadrilla / Técnico</label>
+            <input type="text" id="singleCrew" list="listCrews" placeholder="Ej. Cuadrilla Alfa" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+          </div>
+
+          <div>
+            <label for="singleDatetime" class="block text-[11px] font-bold text-slate-700 mb-1">Fecha de Registro</label>
+            <input type="date" id="singleDatetime" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+          </div>
+        </div>
+
+        <!-- Observaciones -->
+        <div>
+          <label for="singleNotes" class="block text-[11px] font-bold text-slate-700 mb-1">Observaciones / Novedades</label>
+          <input type="text" id="singleNotes" placeholder="Detalles de terreno, material..." class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+        </div>
+
+        <!-- Módulo de Fotos compatible con Celular -->
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-700 flex items-center gap-1">
+              <i data-lucide="camera" class="w-3.5 h-3.5 text-indigo-600"></i>
+              Fotos del Poste
+            </span>
+            <label class="px-2.5 py-1 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg cursor-pointer shadow-xs transition flex items-center gap-1 active:scale-95">
+              <i data-lucide="plus" class="w-3 h-3"></i>
+              <span>Cámara / Galería</span>
+              <input type="file" id="inputPolePhoto" accept="image/*" capture="environment" class="hidden">
+            </label>
+          </div>
+
+          <!-- Galería -->
+          <div id="polePhotosGrid" class="grid grid-cols-4 gap-1.5 min-h-[45px] items-center">
+            <p class="text-[10px] text-slate-400 col-span-4 text-center py-1 italic" id="txtNoPhotos">Sin fotos adjuntas aún</p>
+          </div>
+        </div>
+
+        <!-- Botones de Guardar y Limpiar -->
+        <div class="flex flex-wrap justify-between items-center pt-2.5 border-t border-slate-200 gap-2">
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="handleCloseSingleModal()" class="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-xl transition">
+              Cerrar
+            </button>
+            <button type="button" onclick="handleClearCurrentPole()" class="px-2.5 py-2 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition flex items-center gap-1" title="Eliminar datos ingresados y volver a Sin Iniciar">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              <span>Limpiar Datos</span>
+            </button>
+          </div>
+          
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="handleSaveAndNextPole()" class="px-3 py-2 text-xs font-bold text-slate-700 bg-slate-200 hover:bg-slate-300 rounded-xl transition">
+              Guardar y Siguiente ➡️
+            </button>
+            <button type="submit" class="px-4 py-2 text-xs font-black text-white bg-brand-600 hover:bg-brand-500 rounded-xl shadow-md shadow-brand-600/30 transition">
+              Guardar
+            </button>
+          </div>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- MODAL: ACTUALIZACIÓN POR RANGO / LOTE                -->
+  <!-- ==================================================== -->
+  <div id="modalBatchInstall" class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-scaleUp">
+      
+      <div class="px-4 py-3 bg-purple-950 text-white flex justify-between items-center">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-purple-500/20 text-purple-300 rounded-lg">
+            <i data-lucide="layers" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold">Llenar Información por Rango</h3>
+            <p class="text-[10px] text-purple-300">Asigna la etapa a varios postes a la vez</p>
+          </div>
+        </div>
+        <button onclick="handleCloseBatchModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="formBatchInstall" class="p-4 sm:p-5 space-y-3">
+        
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Tipo de Padrón:</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-2 p-2 rounded-xl border border-slate-300 cursor-pointer hover:bg-slate-50 transition text-xs font-bold">
+              <input type="radio" name="batchType" value="9m" checked class="text-brand-600 focus:ring-brand-500">
+              <span>🏗️ Postes 9m (1 al 524)</span>
+            </label>
+            <label class="flex items-center gap-2 p-2 rounded-xl border border-slate-300 cursor-pointer hover:bg-slate-50 transition text-xs font-bold">
+              <input type="radio" name="batchType" value="13m" class="text-indigo-600 focus:ring-indigo-500">
+              <span>📹 Cámaras 13m (1 al 131)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label for="batchFromNum" class="block text-[11px] font-semibold text-slate-700 mb-1">Desde el N°:</label>
+            <input type="number" id="batchFromNum" min="1" max="524" value="1" required class="w-full px-3 py-1.5 text-sm font-bold rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500">
+          </div>
+          <div>
+            <label for="batchToNum" class="block text-[11px] font-semibold text-slate-700 mb-1">Hasta el N°:</label>
+            <input type="number" id="batchToNum" min="1" max="524" value="20" required class="w-full px-3 py-1.5 text-sm font-bold rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500">
+          </div>
+        </div>
+
+        <div>
+          <label for="batchStage" class="block text-[11px] font-bold text-slate-700 mb-1">Etapa a Asignar:</label>
+          <select id="batchStage" required class="w-full px-3 py-2 text-xs font-bold rounded-xl border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white">
+            <option value="terminado">🟢 Terminado (Verde en Plano UTM)</option>
+            <option value="izado_sin_solado">🔵 Izado sin Solado</option>
+            <option value="falta_solado">🟣 Falta Solado</option>
+            <option value="excavado">🟡 Excavado</option>
+            <option value="corte">🟧 En Corte</option>
+            <option value="pendiente">⚪ Sin Iniciar / Pendiente</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div>
+            <label for="batchCrew" class="block text-[11px] font-semibold text-slate-700 mb-1">Cuadrilla Responsable</label>
+            <input type="text" id="batchCrew" list="listCrews" placeholder="Ej. Cuadrilla Alfa" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500">
+          </div>
+          <div>
+            <label for="batchDatetime" class="block text-[11px] font-semibold text-slate-700 mb-1">Fecha</label>
+            <input type="date" id="batchDatetime" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500">
+          </div>
+        </div>
+
+        <div class="p-2.5 bg-purple-50 rounded-xl border border-purple-200 text-xs text-purple-900">
+          <span class="font-bold">Vista previa:</span> Se actualizarán <strong id="txtBatchCount">20</strong> puntos.
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="handleCloseBatchModal()" class="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-xl">Cancelar</button>
+          <button type="submit" class="px-4 py-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-500 rounded-xl shadow-md shadow-purple-600/30 transition">
+            Confirmar Actualización
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- MODAL: PLANO GEOESPACIAL UTM & MAPA SATELITAL REAL   -->
+  <!-- ==================================================== -->
+  <div id="modalMap" class="fixed inset-0 bg-slate-900/90 backdrop-blur-xs z-50 flex items-center justify-center p-1 sm:p-3 hidden">
+    <div class="bg-slate-900 rounded-2xl max-w-6xl w-full h-[95vh] shadow-2xl border border-slate-700 flex flex-col overflow-hidden animate-scaleUp text-white">
+      
+      <!-- Map Header -->
+      <div class="px-3 py-2 bg-slate-950 border-b border-slate-800 flex flex-wrap justify-between items-center gap-2">
+        <div class="flex items-center gap-2">
+          <div class="p-1 bg-sky-500/20 text-sky-400 rounded-lg">
+            <i data-lucide="map" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="text-xs sm:text-sm font-bold text-white">Plano Georreferenciado & Mapa Satelital (655 Postes)</h3>
+            <p class="text-[10px] text-slate-400">Verde = Terminado • Toca cualquier punto para abrir en Google Maps</p>
+          </div>
+        </div>
+
+        <!-- Controles de Capa y Nombres -->
+        <div class="flex flex-wrap items-center gap-1.5">
+          <!-- Selector de Mapa (Satelital vs Calles vs UTM 2D) -->
+          <div class="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700 text-[10px] font-bold">
+            <button id="btnMapLayerSatellite" onclick="setMapLayer('satellite')" class="px-2 py-1 rounded bg-sky-600 text-white transition flex items-center gap-1">
+              <i data-lucide="globe" class="w-3 h-3"></i> Satélite
+            </button>
+            <button id="btnMapLayerStreets" onclick="setMapLayer('streets')" class="px-2 py-1 rounded text-slate-300 hover:text-white transition flex items-center gap-1">
+              <i data-lucide="map" class="w-3 h-3"></i> Calles
+            </button>
+            <button id="btnMapLayerCanvas" onclick="setMapLayer('canvas')" class="px-2 py-1 rounded text-slate-300 hover:text-white transition flex items-center gap-1">
+              <i data-lucide="grid" class="w-3 h-3"></i> UTM 2D
+            </button>
+          </div>
+
+          <!-- Selector de Modo de Etiquetas -->
+          <div class="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700 text-[10px] font-semibold">
+            <button id="btnLabelModeShort" onclick="setMapLabelMode('short')" class="px-2 py-1 rounded bg-indigo-600 text-white font-bold transition">
+              🏷️ P01/C01
+            </button>
+            <button id="btnLabelModeFull" onclick="setMapLabelMode('full')" class="px-2 py-1 rounded text-slate-400 hover:text-white transition">
+              Completo
+            </button>
+            <button id="btnLabelModeNone" onclick="setMapLabelMode('none')" class="px-2 py-1 rounded text-slate-400 hover:text-white transition">
+              Ocultar
+            </button>
+          </div>
+
+          <button onclick="handleCloseMapModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 ml-1">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Map Container: Leaflet y Canvas 2D -->
+      <div class="relative flex-1 w-full h-full min-h-[350px] bg-slate-950 overflow-hidden">
+        
+        <!-- 1. MAPA REAL LEAFLET (Satelital y Calles) -->
+        <div id="leafletMapContainer" class="w-full h-full z-10"></div>
+
+        <!-- 2. MAPA CANVAS UTM 2D (Alternativo) -->
+        <div id="canvasMapContainer" class="w-full h-full absolute inset-0 hidden flex items-center justify-center touch-none">
+          <canvas id="utmCanvas" class="cursor-crosshair"></canvas>
+          
+          <div class="absolute bottom-3 right-3 bg-slate-900/90 backdrop-blur-md p-1 rounded-xl border border-slate-700 flex gap-1 z-20">
+            <button id="btnZoomIn" class="p-2 hover:bg-slate-800 rounded-lg text-white" title="Acercar"><i data-lucide="zoom-in" class="w-4 h-4"></i></button>
+            <button id="btnZoomOut" class="p-2 hover:bg-slate-800 rounded-lg text-white" title="Alejar"><i data-lucide="zoom-out" class="w-4 h-4"></i></button>
+            <button id="btnResetMap" class="p-2 hover:bg-slate-800 rounded-lg text-white" title="Centrar"><i data-lucide="maximize-2" class="w-4 h-4"></i></button>
+          </div>
+
+          <div id="mapTooltip" class="absolute hidden bg-slate-900/95 text-white p-2.5 rounded-xl text-xs shadow-2xl border border-slate-700 pointer-events-auto z-30 max-w-[240px]"></div>
+        </div>
+
+      </div>
+
+      <!-- Barra de Estado Inferior del Mapa -->
+      <div class="px-3 py-1.5 bg-slate-950 border-t border-slate-800 text-[10px] text-slate-400 flex flex-wrap justify-between items-center gap-1 shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Terminado</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-500"></span> Izado</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-500"></span> Excavado</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-500"></span> Corte</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-400"></span> Pendiente</span>
+        </div>
+        <div class="text-slate-500">
+          655 Puntos Georreferenciados (WGS84 UTM 18S)
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- MODAL: VISOR DE FOTO                                 -->
+  <!-- ==================================================== -->
+  <div id="modalPhotoViewer" class="fixed inset-0 bg-black/95 backdrop-blur-md z-60 flex items-center justify-center p-2 sm:p-4 hidden">
+    <div class="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
+      <button onclick="handleClosePhotoViewer()" class="absolute -top-9 right-0 text-white hover:text-red-400 p-1.5 text-xs font-bold flex items-center gap-1">
+        <i data-lucide="x" class="w-4 h-4"></i> Cerrar
+      </button>
+      <img id="imgViewerTarget" class="max-w-full max-h-[78vh] rounded-xl object-contain shadow-2xl border border-slate-800" src="" alt="Foto">
+      <p id="txtViewerCaption" class="text-white text-[11px] mt-1.5 text-center font-medium"></p>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- MODAL: AJUSTES Y CONFIGURACIÓN                       -->
+  <!-- ==================================================== -->
+  <div id="modalConfig" class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 hidden">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+      
+      <div class="px-4 py-3 bg-slate-900 text-white flex justify-between items-center">
+        <div class="flex items-center gap-2">
+          <i data-lucide="sliders" class="w-4 h-4 text-brand-400"></i>
+          <h3 class="text-sm font-bold">Ajustes del Sistema</h3>
+        </div>
+        <button onclick="handleCloseConfigModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-4 space-y-3 text-xs">
+        <div class="space-y-1">
+          <label for="cfgUtmZone" class="block font-bold text-slate-700">Zona Geográfica UTM para Google Maps:</label>
+          <select id="cfgUtmZone" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 font-bold bg-white text-slate-800">
+            <option value="18" selected>Zona 18 Sur (WGS84 - Perú Centro/Sur)</option>
+            <option value="19">Zona 19 Sur (WGS84 - Perú Sur/Oriente)</option>
+            <option value="17">Zona 17 Sur (WGS84 - Perú Norte/Costa)</option>
+          </select>
+        </div>
+
+        <hr class="border-slate-100">
+
+        <!-- Copia de Seguridad -->
+        <div class="space-y-1.5">
+          <h4 class="font-bold text-slate-700 uppercase tracking-wide text-[11px]">Respaldo de Información</h4>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="handleExportBackup()" class="flex items-center justify-center gap-1 px-3 py-1.5 font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition border border-slate-200">
+              <i data-lucide="download" class="w-3 h-3"></i>
+              Exportar JSON
+            </button>
+            <label class="flex items-center justify-center gap-1 px-3 py-1.5 font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition border border-slate-200 cursor-pointer">
+              <i data-lucide="upload" class="w-3 h-3"></i>
+              Importar JSON
+              <input type="file" id="inputImportBackup" accept=".json" class="hidden">
+            </label>
+          </div>
+        </div>
+
+        <hr class="border-slate-100">
+
+        <!-- Reinicio -->
+        <div class="space-y-1.5">
+          <button onclick="handleClearAllProgress()" class="w-full flex items-center justify-center gap-1 px-3 py-1.5 font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition">
+            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+            Reiniciar Todo a "Sin Iniciar"
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- MODAL: SINCRONIZACIÓN NUBE Y CONEXIÓN CELULAR ↔ PC  -->
+  <!-- ==================================================== -->
+  <div id="modalSyncData" class="fixed inset-0 bg-slate-900/80 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-scaleUp max-h-[95vh] flex flex-col">
+      
+      <!-- Header Modal Sincronización -->
+      <div class="px-5 py-3.5 bg-slate-900 text-white flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl">
+            <i data-lucide="cloud-sync" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-sm sm:text-base font-black tracking-tight uppercase text-indigo-300">
+              Sincronización Celular ↔ Computadora
+            </h3>
+            <p class="text-[10px] sm:text-[11px] text-slate-300">
+              Visualiza en tu PC todos los avances ingresados desde celulares en campo
+            </p>
+          </div>
+        </div>
+        <button onclick="handleCloseSyncModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Pestañas de Sincronización -->
+      <div class="flex border-b border-slate-200 bg-slate-50 text-xs font-bold shrink-0">
+        <button id="tabBtnCloudSync" onclick="switchSyncTab('cloud')" class="flex-1 py-2.5 px-3 text-center border-b-2 border-indigo-600 text-indigo-600 bg-white flex items-center justify-center gap-1.5 transition">
+          <i data-lucide="cloud" class="w-4 h-4"></i>
+          <span>Sincronización Nube</span>
+        </button>
+        <button id="tabBtnQrSync" onclick="switchSyncTab('qr')" class="flex-1 py-2.5 px-3 text-center border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1.5 transition">
+          <i data-lucide="qr-code" class="w-4 h-4"></i>
+          <span>Conectar Celular (QR)</span>
+        </button>
+        <button id="tabBtnFileBackup" onclick="switchSyncTab('file')" class="flex-1 py-2.5 px-3 text-center border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1.5 transition">
+          <i data-lucide="file-down" class="w-4 h-4"></i>
+          <span>WhatsApp / Archivo</span>
+        </button>
+      </div>
+
+      <!-- Contenido de Pestañas -->
+      <div class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 text-xs">
+        
+        <!-- Pestaña 1: Sincronización Nube -->
+        <div id="tabContentCloud" class="space-y-4">
+          
+          <!-- Código del Proyecto / Canal -->
+          <div class="bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-200 space-y-2">
+            <div class="flex justify-between items-center">
+              <label for="inputSyncProjectCode" class="font-black text-indigo-950 uppercase tracking-wide text-[11px] flex items-center gap-1">
+                <i data-lucide="key" class="w-3.5 h-3.5 text-indigo-600"></i>
+                Código de Obra / Canal de Sincronización:
+              </label>
+              <span class="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                🟢 Nube Conectada
+              </span>
+            </div>
+            <input type="text" id="inputSyncProjectCode" value="ABANCAY-SEGURIDAD-2026" class="w-full px-3 py-2 rounded-xl border border-indigo-300 bg-white font-mono font-bold text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+            <p class="text-[10px] text-indigo-700">
+              * Usa este mismo código en la computadora y en los celulares para compartir los avances del proyecto.
+            </p>
+          </div>
+
+          <!-- Acciones Principales de Sincronización -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            
+            <!-- Botón para el Celular -->
+            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
+                  <i data-lucide="smartphone" class="w-4 h-4 text-emerald-600"></i>
+                  <span>Desde el Celular en Campo:</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1">
+                  Sube los postes instalados, fotos y estados a la nube para que se vean en la computadora.
+                </p>
+              </div>
+              <button id="btnPushToCloud" onclick="handlePushDataToCloud()" class="w-full py-2.5 px-3 font-black text-xs text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition shadow-md shadow-emerald-600/30 flex items-center justify-center gap-1.5 active:scale-95">
+                <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+                <span>☁️ Subir Avances a la Central</span>
+              </button>
+            </div>
+
+            <!-- Botón para la Computadora -->
+            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
+                  <i data-lucide="monitor" class="w-4 h-4 text-indigo-600"></i>
+                  <span>En tu Computadora (Oficina):</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1">
+                  Descarga y actualiza inmediatamente en tu pantalla todo lo que llenaron los técnicos.
+                </p>
+              </div>
+              <button id="btnPullFromCloud" onclick="handlePullDataFromCloud()" class="w-full py-2.5 px-3 font-black text-xs text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition shadow-md shadow-indigo-600/30 flex items-center justify-center gap-1.5 active:scale-95">
+                <i data-lucide="cloud-download" class="w-4 h-4"></i>
+                <span>⬇️ Actualizar Datos en mi PC</span>
+              </button>
+            </div>
+
+          </div>
+
+          <!-- Estado y Última Sincronización -->
+          <div class="p-3 bg-slate-100 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
+            <span class="text-slate-600 font-medium">Última sincronización con la central:</span>
+            <span id="txtLastSyncTime" class="font-bold text-slate-900 font-mono">No realizada aún</span>
+          </div>
+
+        </div>
+
+        <!-- Pestaña 2: Conectar Celular (QR y Red Local) -->
+        <div id="tabContentQr" class="space-y-3.5 hidden">
+          <div class="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-200 text-emerald-900 space-y-2">
+            <h4 class="font-bold text-xs flex items-center gap-1.5">
+              <i data-lucide="scan" class="w-4 h-4 text-emerald-600"></i>
+              ¿Cómo instalar y abrir la App en tu Celular?
+            </h4>
+            <ol class="list-decimal list-inside space-y-1 text-[11px] text-emerald-800">
+              <li>Haz doble clic en <strong>iniciar_servidor_celular.bat</strong> en tu PC.</li>
+              <li>Abre la cámara de tu celular y <strong>escanea el código QR</strong> de abajo o escribe la dirección web.</li>
+              <li>En tu celular, pulsa el botón <strong>"📲 Instalar en Celular"</strong> para que quede como una aplicación fija en tu pantalla.</li>
+            </ol>
+          </div>
+
+          <!-- Código QR Generado -->
+          <div class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+            <div id="qrCodeContainer" class="p-3 bg-white rounded-xl shadow-md border border-slate-200 flex items-center justify-center">
+              <img id="imgQrCodeDisplay" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=http%3A%2F%2Flocalhost%3A8080%2F" alt="Código QR para Celular" class="w-44 h-44 object-contain rounded-lg">
+            </div>
+            <div class="text-center space-y-1 w-full max-w-sm">
+              <span class="text-[11px] text-slate-500 font-bold block">Enlace para abrir en el celular:</span>
+              <input type="text" id="inputLocalServerUrl" value="http://localhost:8080/" readonly class="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-center font-mono font-bold text-xs text-indigo-700 w-full" onclick="this.select()">
+            </div>
+          </div>
+        </div>
+
+        <!-- Pestaña 3: Respaldo WhatsApp / Archivo -->
+        <div id="tabContentFile" class="space-y-3 hidden">
+          <p class="text-slate-600 text-xs">
+            Si estás en una zona sin nada de cobertura de internet, el técnico puede exportar el archivo de avance y enviártelo por WhatsApp para cargarlo en la PC en 1 segundo:
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <button onclick="handleExportSyncPackage()" class="p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-left transition space-y-1">
+              <span class="font-bold text-emerald-900 block flex items-center gap-1">
+                <i data-lucide="share-2" class="w-4 h-4 text-emerald-600"></i>
+                1. Exportar Avance (Celular)
+              </span>
+              <span class="text-[10px] text-emerald-700 block">Descarga el archivo liviano para enviar por WhatsApp.</span>
+            </button>
+
+            <label class="p-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl text-left transition space-y-1 cursor-pointer block">
+              <span class="font-bold text-indigo-900 flex items-center gap-1">
+                <i data-lucide="download-cloud" class="w-4 h-4 text-indigo-600"></i>
+                2. Cargar en PC (Recibir Avance)
+              </span>
+              <span class="text-[10px] text-indigo-700 block">Selecciona el archivo recibido y se integrará al padrón.</span>
+              <input type="file" id="inputImportSyncFile" accept=".json" class="hidden" onchange="handleImportSyncPackage(event)">
+            </label>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer Modal Sincronización -->
+      <div class="px-5 py-3 bg-slate-100 border-t border-slate-200 flex justify-between items-center shrink-0">
+        <span class="text-[10px] text-slate-500 font-medium">PosteTrack Cloud Sync • Abancay</span>
+        <button onclick="handleCloseSyncModal()" class="px-4 py-1.5 text-xs font-bold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition">
+          Cerrar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Barra de Acciones Inferior Fija para Móviles con Sincronización -->
+  <div class="sm:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 py-2 px-2 flex justify-around items-center z-30 shadow-2xl">
+    <button onclick="setTypeFilter('all')" class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-slate-300 hover:text-white">
+      <i data-lucide="layout-grid" class="w-4 h-4"></i>
+      <span>Padrón</span>
+    </button>
+    <button onclick="handleOpenMapModal()" class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-sky-400">
+      <i data-lucide="map" class="w-4 h-4"></i>
+      <span>Plano</span>
+    </button>
+    <button onclick="handleOpenSyncModal()" class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-indigo-400">
+      <i data-lucide="cloud-sync" class="w-4 h-4"></i>
+      <span>Sincronizar</span>
+    </button>
+    <button onclick="handleOpenReportsModal()" class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-amber-400">
+      <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+      <span>Reportes</span>
+    </button>
+    <button onclick="handleInstallAppClick()" class="flex flex-col items-center gap-0.5 text-[10px] font-bold text-emerald-400">
+      <i data-lucide="smartphone" class="w-4 h-4"></i>
+      <span>Instalar</span>
+    </button>
+  </div>
+
+  <!-- Datalists -->
+  <datalist id="listCrews">
+    <option value="Cuadrilla Alfa">
+    <option value="Cuadrilla Beta">
+    <option value="Cuadrilla Gamma">
+    <option value="Contratista Norte">
+    <option value="Contratista Sur">
+    <option value="Mantenimiento y Redes">
+  </datalist>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="fixed bottom-20 sm:bottom-5 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Carga de datos y lógica -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

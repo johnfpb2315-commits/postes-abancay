@@ -1,0 +1,27 @@
+{
+  "name": "PosteTrack Pro - Control de Obra Abancay",
+  "short_name": "PosteTrack",
+  "description": "Sistema de Control de Instalación de Postes y Cámaras de Seguridad - Abancay",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "es",
+  "categories": ["productivity", "utilities", "business"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='128' fill='%230f172a'/%3E%3Ccircle cx='256' cy='256' r='180' fill='%2316a34a' opacity='0.15'/%3E%3Cpath d='M256 90 L256 422 M160 170 L352 170 M180 240 L332 240 M200 310 L312 310' stroke='%2322c55e' stroke-width='28' stroke-linecap='round'/%3E%3Ccircle cx='256' cy='90' r='24' fill='%23f59e0b'/%3E%3Ccircle cx='160' cy='170' r='16' fill='%2338bdf8'/%3E%3Ccircle cx='352' cy='170' r='16' fill='%2338bdf8'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='128' fill='%230f172a'/%3E%3Ccircle cx='256' cy='256' r='180' fill='%2316a34a' opacity='0.15'/%3E%3Cpath d='M256 90 L256 422 M160 170 L352 170 M180 240 L332 240 M200 310 L312 310' stroke='%2322c55e' stroke-width='28' stroke-linecap='round'/%3E%3Ccircle cx='256' cy='90' r='24' fill='%23f59e0b'/%3E%3Ccircle cx='160' cy='170' r='16' fill='%2338bdf8'/%3E%3Ccircle cx='352' cy='170' r='16' fill='%2338bdf8'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
