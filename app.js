@@ -2389,65 +2389,21 @@ function getActiveProjectCode() {
   return localStorage.getItem('postetrack_active_project_code') || 'ABANCAY-SEGURIDAD-2026';
 }
 
-const NTFY_SYNC_TOPIC = 'postetrack_abancay_2026_sync';
-const NTFY_SYNC_URL = `https://ntfy.sh/${NTFY_SYNC_TOPIC}`;
-let ntfyEventSource = null;
-
-function connectRealtimeSyncStream() {
-  if (ntfyEventSource) {
-    try { ntfyEventSource.close(); } catch (e) {}
-  }
-
-  try {
-    if (window.EventSource) {
-      ntfyEventSource = new EventSource(`${NTFY_SYNC_URL}/sse`);
-      
-      ntfyEventSource.onmessage = async function(event) {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.attachment && data.attachment.url) {
-            try {
-              const fileResp = await fetch(data.attachment.url);
-              if (fileResp.ok) {
-                const filePayload = await fileResp.json();
-                applyRemoteSyncPayload(filePayload, true);
-              }
-            } catch (fe) {}
-          } else if (data.message && data.message.startsWith('{')) {
-            try {
-              const remotePayload = JSON.parse(data.message);
-              applyRemoteSyncPayload(remotePayload, true);
-            } catch (me) {}
-          }
-        } catch (e) {}
-      };
-
-      ntfyEventSource.onerror = function() {
-        try { ntfyEventSource.close(); } catch (e) {}
-        ntfyEventSource = null;
-        setTimeout(connectRealtimeSyncStream, 5000);
-      };
-    }
-  } catch (err) {
-    console.warn('[EventSource Error]:', err);
-  }
-}
+const CLOUD_SYNC_BIN_ID = 'edfecbb';
+const CLOUD_SYNC_API_URL = `https://extendsclass.com/api/json-storage/bin/${CLOUD_SYNC_BIN_ID}`;
 
 function startLiveAutoSync() {
   if (autoSyncIntervalId) clearInterval(autoSyncIntervalId);
 
-  // 1. Conectar flujo en tiempo real (Sub-segundo instantáneo)
-  connectRealtimeSyncStream();
-
-  // 2. Recuperar últimos avances de la nube al abrir la app
+  // 1. Recuperar últimos avances de la nube inmediatamente al abrir la app
   setTimeout(() => {
     handlePullDataFromCloud(true);
-  }, 300);
+  }, 200);
 
-  // 3. Sondeo de respaldo cada 4 segundos
+  // 2. Sondeo en segundo plano cada 2.5 segundos
   autoSyncIntervalId = setInterval(() => {
     handlePullDataFromCloud(true);
-  }, 4000);
+  }, 2500);
 
   updateLiveSyncBannerUI('ready');
 }
@@ -2507,12 +2463,17 @@ window.handlePushDataToCloud = async function(silent = false) {
 
     lastCloudSyncTimestamp = payload.updatedAt;
 
-    const payloadStr = JSON.stringify(payload);
-
-    await fetch(NTFY_SYNC_URL, {
-      method: 'POST',
-      body: payloadStr
+    const response = await fetch(CLOUD_SYNC_API_URL, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
 
     const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const txtLast = document.getElementById('txtLastSyncTime');
@@ -2525,7 +2486,7 @@ window.handlePushDataToCloud = async function(silent = false) {
     }
   } catch (err) {
     console.error('[Cloud Auto-Push Error]:', err);
-    if (!silent) showToast('Error de conexión al sincronizar con la nube', 'error');
+    if (!silent) showToast('Error al conectar con la nube', 'error');
   } finally {
     if (!silent && btn) {
       btn.disabled = false;
@@ -2605,74 +2566,34 @@ function applyMergedRemotePoles(remotePolesMap, updatedAt = null, silent = true)
   }
 }
 
-function applyRemoteSyncPayload(remoteData, fromStream = false) {
-  if (!remoteData || !Array.isArray(remoteData.poles)) return;
-
-  const remotePolesMap = new Map();
-  remoteData.poles.forEach(rp => {
-    const pid = rp.id || rp.name;
-    if (pid) remotePolesMap.set(pid, rp);
-  });
-
-  applyMergedRemotePoles(remotePolesMap, remoteData.updatedAt, true);
-}
-
 window.handlePullDataFromCloud = async function(silent = false) {
   if (isSyncingInProgress) return;
   isSyncingInProgress = true;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3000);
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
 
   try {
-    const resp = await fetch(`${NTFY_SYNC_URL}/json?since=24h`, { signal: controller.signal });
+    const resp = await fetch(`${CLOUD_SYNC_API_URL}?_t=${Date.now()}`, { signal: controller.signal });
     clearTimeout(timeoutId);
     if (!resp.ok) return;
 
-    const rawText = await resp.text();
-    const lines = rawText.split('\n').filter(l => l.trim());
+    const remoteData = await resp.json();
+    if (!remoteData || !Array.isArray(remoteData.poles)) return;
 
-    const mergedRemoteMap = new Map();
-    let latestTime = null;
-
-    for (const line of lines) {
-      try {
-        const obj = JSON.parse(line);
-
-        // Caso 1: Archivo adjunto (cuando hay fotos o payloads de más de 4KB)
-        if (obj.attachment && obj.attachment.url) {
-          try {
-            const fileResp = await fetch(obj.attachment.url);
-            if (fileResp.ok) {
-              const filePayload = await fileResp.json();
-              if (filePayload && Array.isArray(filePayload.poles)) {
-                if (filePayload.updatedAt) latestTime = filePayload.updatedAt;
-                filePayload.poles.forEach(p => {
-                  const pid = p.id || p.name;
-                  if (pid) mergedRemoteMap.set(pid, p);
-                });
-              }
-            }
-          } catch (fe) {}
-        }
-        // Caso 2: Mensaje JSON directo (texto plano)
-        else if (obj.message && obj.message.startsWith('{')) {
-          try {
-            const msgPayload = JSON.parse(obj.message);
-            if (msgPayload && Array.isArray(msgPayload.poles)) {
-              if (msgPayload.updatedAt) latestTime = msgPayload.updatedAt;
-              msgPayload.poles.forEach(p => {
-                const pid = p.id || p.name;
-                if (pid) mergedRemoteMap.set(pid, p);
-              });
-            }
-          } catch (me) {}
-        }
-      } catch (e) {}
+    if (silent && remoteData.updatedAt && remoteData.updatedAt === lastCloudSyncTimestamp) {
+      updateLiveSyncBannerUI('synced');
+      return;
     }
 
+    const mergedRemoteMap = new Map();
+    remoteData.poles.forEach(p => {
+      const pid = p.id || p.name;
+      if (pid) mergedRemoteMap.set(pid, p);
+    });
+
     if (mergedRemoteMap.size > 0) {
-      applyMergedRemotePoles(mergedRemoteMap, latestTime, silent);
+      applyMergedRemotePoles(mergedRemoteMap, remoteData.updatedAt, silent);
     }
   } catch (err) {
     clearTimeout(timeoutId);
