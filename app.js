@@ -2516,65 +2516,58 @@ window.handlePushDataToCloud = async function(silent = false) {
   }
 };
 
-function applyRemoteSyncPayload(remoteData, fromStream = false) {
-  if (!remoteData || !Array.isArray(remoteData.poles)) return;
+function applyMergedRemotePoles(remotePolesMap, updatedAt = null, silent = true) {
+  if (!remotePolesMap || remotePolesMap.size === 0) return;
 
-  if (remoteData.updatedAt && remoteData.updatedAt === lastCloudSyncTimestamp) {
+  if (updatedAt && updatedAt === lastCloudSyncTimestamp) {
     return;
   }
 
-  lastCloudSyncTimestamp = remoteData.updatedAt || new Date().toISOString();
+  lastCloudSyncTimestamp = updatedAt || new Date().toISOString();
 
   let updatedCount = 0;
-  const remotePolesMap = new Map();
-  remoteData.poles.forEach(rp => remotePolesMap.set(rp.id, rp));
 
   polesState.forEach(localPole => {
     const remote = remotePolesMap.get(localPole.id);
     if (remote) {
       let changed = false;
-      if (remote.stage !== localPole.stage) {
+      if (remote.stage && remote.stage !== localPole.stage) {
         localPole.stage = remote.stage;
         changed = true;
       }
-      if (remote.crew !== localPole.crew) {
+      if (remote.crew !== undefined && remote.crew !== localPole.crew) {
         localPole.crew = remote.crew || '';
         changed = true;
       }
-      if (remote.installedAt !== localPole.installedAt) {
+      if (remote.installedAt !== undefined && remote.installedAt !== localPole.installedAt) {
         localPole.installedAt = remote.installedAt || '';
         changed = true;
       }
-      if (remote.installNotes !== localPole.installNotes) {
+      if (remote.installNotes !== undefined && remote.installNotes !== localPole.installNotes) {
         localPole.installNotes = remote.installNotes || '';
         changed = true;
       }
-      if (JSON.stringify(remote.photos || []) !== JSON.stringify(localPole.photos || [])) {
-        localPole.photos = remote.photos || [];
-        changed = true;
+      if (remote.photos && Array.isArray(remote.photos) && remote.photos.length > 0) {
+        if (JSON.stringify(remote.photos) !== JSON.stringify(localPole.photos || [])) {
+          localPole.photos = remote.photos;
+          changed = true;
+        }
       }
 
       if (changed) updatedCount++;
-    } else {
-      if (localPole.stage !== 'pendiente' || localPole.crew || (localPole.photos && localPole.photos.length > 0)) {
-        localPole.stage = 'pendiente';
-        localPole.crew = '';
-        localPole.installedAt = '';
-        localPole.installNotes = '';
-        localPole.photos = [];
-        updatedCount++;
-      }
     }
   });
 
-  savePolesToStorage();
-  populateCrewFilters();
-  updateDashboard();
-  renderPolesTable();
+  if (updatedCount > 0) {
+    savePolesToStorage();
+    populateCrewFilters();
+    updateDashboard();
+    renderPolesTable();
 
-  const repModal = document.getElementById('modalReports');
-  if (repModal && !repModal.classList.contains('hidden')) {
-    renderReportsView();
+    const repModal = document.getElementById('modalReports');
+    if (repModal && !repModal.classList.contains('hidden')) {
+      renderReportsView();
+    }
   }
 
   const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -2584,20 +2577,29 @@ function applyRemoteSyncPayload(remoteData, fromStream = false) {
   updateLiveSyncBannerUI('synced', timeStr);
 
   if (updatedCount > 0) {
-    showToast(`⚡ Sincronización en vivo: ${updatedCount} poste(s) actualizados (${timeStr})`, 'info');
+    if (!silent) {
+      if (typeof confetti === 'function') confetti({ particleCount: 30, spread: 50, origin: { y: 0.6 } });
+      showToast(`🎉 ¡Sincronizado! Se actualizaron ${updatedCount} poste(s)`, 'success');
+    } else {
+      showToast(`⚡ Sincronización en vivo: ${updatedCount} poste(s) actualizados (${timeStr})`, 'info');
+    }
   }
+}
+
+function applyRemoteSyncPayload(remoteData, fromStream = false) {
+  if (!remoteData || !Array.isArray(remoteData.poles)) return;
+
+  const remotePolesMap = new Map();
+  remoteData.poles.forEach(rp => {
+    if (rp && rp.id) remotePolesMap.set(rp.id, rp);
+  });
+
+  applyMergedRemotePoles(remotePolesMap, remoteData.updatedAt, true);
 }
 
 window.handlePullDataFromCloud = async function(silent = false) {
   if (isSyncingInProgress) return;
   isSyncingInProgress = true;
-
-  const btn = document.getElementById('btnPullFromCloud');
-
-  if (!silent && btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Sincronizando...';
-  }
 
   try {
     const resp = await fetch(`${NTFY_SYNC_URL}/json?since=24h&poll=1`);
@@ -2606,36 +2608,33 @@ window.handlePullDataFromCloud = async function(silent = false) {
     const rawText = await resp.text();
     const lines = rawText.split('\n').filter(l => l.trim());
 
-    let latestPayload = null;
+    const mergedRemoteMap = new Map();
+    let latestTime = null;
+
     for (const line of lines) {
       try {
         const obj = JSON.parse(line);
         if (obj.message) {
-          const msgPayload = JSON.parse(obj.message);
-          if (msgPayload && msgPayload.poles) {
-            latestPayload = msgPayload;
+          const msgPayload = typeof obj.message === 'string' ? JSON.parse(obj.message) : obj.message;
+          if (msgPayload && Array.isArray(msgPayload.poles)) {
+            if (msgPayload.updatedAt) latestTime = msgPayload.updatedAt;
+            msgPayload.poles.forEach(p => {
+              if (p && p.id) {
+                mergedRemoteMap.set(p.id, p);
+              }
+            });
           }
         }
       } catch (e) {}
     }
 
-    if (latestPayload) {
-      applyRemoteSyncPayload(latestPayload, false);
-      if (!silent) {
-        if (typeof confetti === 'function') confetti({ particleCount: 30, spread: 50, origin: { y: 0.6 } });
-        showToast(`🎉 ¡Sincronizado con éxito con la nube!`, 'success');
-      }
+    if (mergedRemoteMap.size > 0) {
+      applyMergedRemotePoles(mergedRemoteMap, latestTime, silent);
     }
   } catch (err) {
     console.error('[Cloud Pull Error]:', err);
-    if (!silent) showToast('Error al descargar datos de la nube', 'error');
   } finally {
     isSyncingInProgress = false;
-    if (!silent && btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<i data-lucide="cloud-download" class="w-4 h-4"></i> <span>⬇️ Actualizar Datos en mi PC</span>';
-      if (window.lucide) window.lucide.createIcons();
-    }
   }
 };
 
