@@ -142,6 +142,7 @@ function startPosteTrackApp() {
   }
 
   try {
+    switchPolesViewMode(currentPolesViewMode);
     renderPolesTable();
   } catch (e) {
     console.error('Error renderPolesTable:', e);
@@ -531,7 +532,7 @@ function getFilteredPoles() {
   });
 }
 
-let currentPolesViewMode = 'cards';
+let currentPolesViewMode = (typeof window !== 'undefined' && window.innerWidth >= 768) ? 'table' : 'cards';
 
 window.switchPolesViewMode = function(mode) {
   currentPolesViewMode = mode;
@@ -543,13 +544,13 @@ window.switchPolesViewMode = function(mode) {
   if (mode === 'cards') {
     if (cardsContainer) cardsContainer.classList.remove('hidden');
     if (tableContainer) tableContainer.classList.add('hidden');
-    if (btnCards) btnCards.className = 'px-2.5 py-1 rounded-lg font-bold text-[11px] bg-white text-slate-900 shadow-xs transition flex items-center gap-1';
-    if (btnTable) btnTable.className = 'px-2.5 py-1 rounded-lg font-bold text-[11px] text-slate-600 hover:text-slate-900 transition flex items-center gap-1';
+    if (btnCards) btnCards.className = 'px-3 py-1 rounded-lg font-bold text-xs bg-white text-slate-900 shadow-xs transition flex items-center gap-1';
+    if (btnTable) btnTable.className = 'px-3 py-1 rounded-lg font-bold text-xs text-slate-600 hover:text-slate-900 transition flex items-center gap-1';
   } else {
     if (cardsContainer) cardsContainer.classList.add('hidden');
     if (tableContainer) tableContainer.classList.remove('hidden');
-    if (btnTable) btnTable.className = 'px-2.5 py-1 rounded-lg font-bold text-[11px] bg-white text-slate-900 shadow-xs transition flex items-center gap-1';
-    if (btnCards) btnCards.className = 'px-2.5 py-1 rounded-lg font-bold text-[11px] text-slate-600 hover:text-slate-900 transition flex items-center gap-1';
+    if (btnTable) btnTable.className = 'px-3 py-1 rounded-lg font-bold text-xs bg-white text-slate-900 shadow-xs transition flex items-center gap-1';
+    if (btnCards) btnCards.className = 'px-3 py-1 rounded-lg font-bold text-xs text-slate-600 hover:text-slate-900 transition flex items-center gap-1';
   }
 };
 
@@ -2416,47 +2417,57 @@ window.handleTriggerManualSync = async function() {
   }
 };
 
+const CLOUD_SYNC_OBJECT_ID = 'ff808181a04ccf2d01a0558653b01c67';
+const CLOUD_SYNC_API_URL = 'https://api.restful-api.dev/objects/' + CLOUD_SYNC_OBJECT_ID;
+
 window.handlePushDataToCloud = async function(silent = false) {
   const projectCode = getActiveProjectCode();
   const btn = document.getElementById('btnPushToCloud');
 
   if (!silent && btn) {
     btn.disabled = true;
-    btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Subiendo a la central...';
+    btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Subiendo a la nube...';
   }
 
   updateLiveSyncBannerUI('uploading');
 
   try {
-    const payload = {
-      projectCode: projectCode,
-      updatedAt: new Date().toISOString(),
-      polesCount: polesState.length,
-      poles: polesState.map(p => ({
+    const changedPoles = polesState
+      .filter(p => p.stage !== 'pendiente' || p.crew || p.installedAt || p.installNotes || (p.photos && p.photos.length > 0))
+      .map(p => ({
         id: p.id,
         stage: p.stage || 'pendiente',
         crew: p.crew || '',
         installedAt: p.installedAt || '',
         installNotes: p.installNotes || '',
         photos: p.photos || []
-      }))
+      }));
+
+    const payload = {
+      name: "PosteTrack_Abancay_Sync",
+      data: {
+        projectCode: projectCode,
+        updatedAt: new Date().toISOString(),
+        totalProgressCount: changedPoles.length,
+        poles: changedPoles
+      }
     };
 
     const payloadJson = JSON.stringify(payload);
-    localStorage.setItem(`${CLOUD_STORAGE_KEY_PREFIX}${projectCode}`, payloadJson);
+    localStorage.setItem(`${CLOUD_STORAGE_KEY_PREFIX}${projectCode}`, JSON.stringify(payload.data));
     localStorage.setItem('postetrack_active_project_code', projectCode);
 
     try {
-      await fetch(`https://kvdb.io/8aW5P4FvLz7Q7K9J1b2C3D/${encodeURIComponent(projectCode)}`, {
-        method: 'POST',
+      await fetch(CLOUD_SYNC_API_URL, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: payloadJson
       });
     } catch (netErr) {
-      console.warn('[Cloud Auto-Push] Guardado localmente, sincronizará al haber conexión:', netErr);
+      console.warn('[Cloud Auto-Push] Guardado localmente:', netErr);
     }
 
-    lastCloudSyncTimestamp = payload.updatedAt;
+    lastCloudSyncTimestamp = payload.data.updatedAt;
     const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     
     const txtLast = document.getElementById('txtLastSyncTime');
@@ -2465,7 +2476,7 @@ window.handlePushDataToCloud = async function(silent = false) {
     updateLiveSyncBannerUI('synced', timeStr);
 
     if (!silent) {
-      showToast(`☁️ ¡Avances del celular subidos a la central! (${timeStr})`, 'success');
+      showToast(`☁️ ¡Avances subidos a la nube con éxito! (${timeStr})`, 'success');
     }
   } catch (err) {
     if (!silent) showToast('Error al sincronizar con la nube', 'error');
@@ -2487,44 +2498,38 @@ window.handlePullDataFromCloud = async function(silent = false) {
 
   if (!silent && btn) {
     btn.disabled = true;
-    btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Descargando datos...';
+    btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Sincronizando...';
   }
 
   try {
-    let remotePayload = null;
+    let remoteData = null;
 
     try {
-      const resp = await fetch(`https://kvdb.io/8aW5P4FvLz7Q7K9J1b2C3D/${encodeURIComponent(projectCode)}?_t=${Date.now()}`);
+      const resp = await fetch(`${CLOUD_SYNC_API_URL}?_t=${Date.now()}`);
       if (resp.ok) {
-        remotePayload = await resp.json();
+        const json = await resp.json();
+        remoteData = json.data || json;
       }
     } catch (netErr) {}
 
-    if (!remotePayload) {
-      const localData = localStorage.getItem(`${CLOUD_STORAGE_KEY_PREFIX}${projectCode}`);
-      if (localData) {
-        remotePayload = JSON.parse(localData);
-      }
-    }
-
-    if (!remotePayload || !remotePayload.poles) {
+    if (!remoteData || !remoteData.poles) {
       if (!silent) {
-        showToast('No se encontraron nuevos datos en la nube. Pulsa "Subir Avances" en el celular.', 'info');
+        showToast('Nube conectada. Pulsa "Subir Avances" en tu laptop para cargar los postes.', 'info');
       }
       updateLiveSyncBannerUI('synced');
       return;
     }
 
-    if (silent && remotePayload.updatedAt && remotePayload.updatedAt === lastCloudSyncTimestamp) {
+    if (silent && remoteData.updatedAt && remoteData.updatedAt === lastCloudSyncTimestamp) {
       updateLiveSyncBannerUI('synced');
       return;
     }
 
-    lastCloudSyncTimestamp = remotePayload.updatedAt || new Date().toISOString();
+    lastCloudSyncTimestamp = remoteData.updatedAt || new Date().toISOString();
 
     let updatedCount = 0;
     const remotePolesMap = new Map();
-    remotePayload.poles.forEach(rp => remotePolesMap.set(rp.id, rp));
+    remoteData.poles.forEach(rp => remotePolesMap.set(rp.id, rp));
 
     polesState.forEach(localPole => {
       const remote = remotePolesMap.get(localPole.id);
@@ -2570,15 +2575,15 @@ window.handlePullDataFromCloud = async function(silent = false) {
         if (typeof confetti === 'function') {
           confetti({ particleCount: 40, spread: 50, origin: { y: 0.6 } });
         }
-        showToast(`🎉 ¡Datos actualizados! Se sincronizaron ${updatedCount} puntos de campo`, 'success');
+        showToast(`🎉 ¡Sincronizado! Se actualizaron ${updatedCount} puntos de campo`, 'success');
       } else {
-        showToast(`📲 Actualización automática: ${updatedCount} punto(s) recibidos desde campo`, 'info');
+        showToast(`📲 Actualización automática: ${updatedCount} punto(s) sincronizados`, 'info');
       }
     }
 
     const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const txtLast = document.getElementById('txtLastSyncTime');
-    if (txtLast) txtLast.textContent = `Descargado hoy a las ${timeStr}`;
+    if (txtLast) txtLast.textContent = `Sincronizado hoy a las ${timeStr}`;
 
     updateLiveSyncBannerUI('synced', timeStr);
   } catch (err) {

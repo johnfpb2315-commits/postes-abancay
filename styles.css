@@ -231,6 +231,37 @@ button:active, a:active {
   transform: scale(0.97);
 }
 
+/* Tabla de Escritorio */
+#containerDesktopPolesTable {
+  width: 100% !important;
+  display: block;
+}
+
+#containerDesktopPolesTable.hidden {
+  display: none !important;
+}
+
+#containerDesktopPolesTable table {
+  width: 100% !important;
+  min-width: 750px;
+  border-collapse: collapse;
+}
+
+#containerDesktopPolesTable th {
+  padding: 10px 14px;
+  background-color: #f8fafc;
+  font-weight: 800;
+  font-size: 11px;
+  color: #334155;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+#containerDesktopPolesTable td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
 /* Modales de Alta Prioridad */
 #modalSyncData, #modalReports, #modalSingleInstall, #modalBatchInstall, #modalConfig, #modalMap, #modalPhotoViewer {
   position: fixed !important;
