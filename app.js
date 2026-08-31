@@ -2402,12 +2402,22 @@ function connectRealtimeSyncStream() {
     if (window.EventSource) {
       ntfyEventSource = new EventSource(`${NTFY_SYNC_URL}/sse`);
       
-      ntfyEventSource.onmessage = function(event) {
+      ntfyEventSource.onmessage = async function(event) {
         try {
           const data = JSON.parse(event.data);
-          if (data.message) {
-            const remotePayload = JSON.parse(data.message);
-            applyRemoteSyncPayload(remotePayload, true);
+          if (data.attachment && data.attachment.url) {
+            try {
+              const fileResp = await fetch(data.attachment.url);
+              if (fileResp.ok) {
+                const filePayload = await fileResp.json();
+                applyRemoteSyncPayload(filePayload, true);
+              }
+            } catch (fe) {}
+          } else if (data.message && data.message.startsWith('{')) {
+            try {
+              const remotePayload = JSON.parse(data.message);
+              applyRemoteSyncPayload(remotePayload, true);
+            } catch (me) {}
           }
         } catch (e) {}
       };
@@ -2434,10 +2444,10 @@ function startLiveAutoSync() {
     handlePullDataFromCloud(true);
   }, 300);
 
-  // 3. Sondeo de respaldo cada 5 segundos
+  // 3. Sondeo de respaldo cada 4 segundos
   autoSyncIntervalId = setInterval(() => {
     handlePullDataFromCloud(true);
-  }, 5000);
+  }, 4000);
 
   updateLiveSyncBannerUI('ready');
 }
@@ -2479,6 +2489,7 @@ window.handlePushDataToCloud = async function(silent = false) {
       .filter(p => (p.stage && p.stage !== 'pendiente') || p.crew || p.installedAt || p.installNotes || (p.photos && p.photos.length > 0))
       .map(p => ({
         id: p.id,
+        name: p.name,
         stage: p.stage || 'pendiente',
         crew: p.crew || '',
         installedAt: p.installedAt || '',
@@ -2536,7 +2547,7 @@ function applyMergedRemotePoles(remotePolesMap, updatedAt = null, silent = true)
   let updatedCount = 0;
 
   polesState.forEach(localPole => {
-    const remote = remotePolesMap.get(localPole.id);
+    const remote = remotePolesMap.get(localPole.id) || remotePolesMap.get(localPole.name);
     if (remote) {
       let changed = false;
       if (remote.stage && remote.stage !== localPole.stage) {
@@ -2599,7 +2610,8 @@ function applyRemoteSyncPayload(remoteData, fromStream = false) {
 
   const remotePolesMap = new Map();
   remoteData.poles.forEach(rp => {
-    if (rp && rp.id) remotePolesMap.set(rp.id, rp);
+    const pid = rp.id || rp.name;
+    if (pid) remotePolesMap.set(pid, rp);
   });
 
   applyMergedRemotePoles(remotePolesMap, remoteData.updatedAt, true);
@@ -2622,16 +2634,35 @@ window.handlePullDataFromCloud = async function(silent = false) {
     for (const line of lines) {
       try {
         const obj = JSON.parse(line);
-        if (obj.message) {
-          const msgPayload = typeof obj.message === 'string' ? JSON.parse(obj.message) : obj.message;
-          if (msgPayload && Array.isArray(msgPayload.poles)) {
-            if (msgPayload.updatedAt) latestTime = msgPayload.updatedAt;
-            msgPayload.poles.forEach(p => {
-              if (p && p.id) {
-                mergedRemoteMap.set(p.id, p);
+
+        // Caso 1: Archivo adjunto (cuando hay fotos o payloads de más de 4KB)
+        if (obj.attachment && obj.attachment.url) {
+          try {
+            const fileResp = await fetch(obj.attachment.url);
+            if (fileResp.ok) {
+              const filePayload = await fileResp.json();
+              if (filePayload && Array.isArray(filePayload.poles)) {
+                if (filePayload.updatedAt) latestTime = filePayload.updatedAt;
+                filePayload.poles.forEach(p => {
+                  const pid = p.id || p.name;
+                  if (pid) mergedRemoteMap.set(pid, p);
+                });
               }
-            });
-          }
+            }
+          } catch (fe) {}
+        }
+        // Caso 2: Mensaje JSON directo (texto plano)
+        else if (obj.message && obj.message.startsWith('{')) {
+          try {
+            const msgPayload = JSON.parse(obj.message);
+            if (msgPayload && Array.isArray(msgPayload.poles)) {
+              if (msgPayload.updatedAt) latestTime = msgPayload.updatedAt;
+              msgPayload.poles.forEach(p => {
+                const pid = p.id || p.name;
+                if (pid) mergedRemoteMap.set(pid, p);
+              });
+            }
+          } catch (me) {}
         }
       } catch (e) {}
     }
