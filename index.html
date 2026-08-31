@@ -210,10 +210,10 @@
           </div>
         </div>
 
-        <!-- 2. IZADO SIN SOLADO (AZUL) -->
+        <!-- 2. IZADO (AZUL) -->
         <div class="bg-gradient-to-br from-sky-500/10 via-white to-sky-50 rounded-xl p-2.5 border border-sky-300 shadow-xs flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition" onclick="filterByStage('izado_sin_solado')">
           <div class="flex items-center justify-between">
-            <span class="text-[10px] font-extrabold uppercase text-sky-800 tracking-wider">Izado s/ Solado</span>
+            <span class="text-[10px] font-extrabold uppercase text-sky-800 tracking-wider">Izado</span>
             <span class="w-2.5 h-2.5 rounded-full bg-sky-500 ring-2 ring-sky-200"></span>
           </div>
           <div class="my-0.5">
@@ -225,10 +225,10 @@
           </div>
         </div>
 
-        <!-- 3. FALTA SOLADO (MORADO) -->
+        <!-- 3. Falta Resanar Vereda (MORADO) -->
         <div class="bg-gradient-to-br from-purple-500/10 via-white to-purple-50 rounded-xl p-2.5 border border-purple-300 shadow-xs flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition" onclick="filterByStage('falta_solado')">
           <div class="flex items-center justify-between">
-            <span class="text-[10px] font-extrabold uppercase text-purple-800 tracking-wider">Falta Solado</span>
+            <span class="text-[10px] font-extrabold uppercase text-purple-800 tracking-wider">Falta Resanar Vereda</span>
             <span class="w-2.5 h-2.5 rounded-full bg-purple-500 ring-2 ring-purple-200"></span>
           </div>
           <div class="my-0.5">
@@ -306,10 +306,53 @@
       <!-- Barra multi-etapas -->
       <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex border border-slate-200 shadow-inner">
         <div id="barTerminados" class="bg-emerald-500 h-full transition-all duration-500" style="width: 0%" title="Terminados"></div>
-        <div id="barIzado" class="bg-sky-500 h-full transition-all duration-500" style="width: 0%" title="Izado sin solado"></div>
-        <div id="barFaltaSolado" class="bg-purple-500 h-full transition-all duration-500" style="width: 0%" title="Falta solado"></div>
+        <div id="barIzado" class="bg-sky-500 h-full transition-all duration-500" style="width: 0%" title="Izado"></div>
+        <div id="barFaltaSolado" class="bg-purple-500 h-full transition-all duration-500" style="width: 0%" title="Falta Resanar Vereda"></div>
         <div id="barExcavados" class="bg-yellow-500 h-full transition-all duration-500" style="width: 0%" title="Excavados"></div>
         <div id="barCorte" class="bg-orange-500 h-full transition-all duration-500" style="width: 0%" title="En corte"></div>
+      </div>
+      <!-- Gráfico de Torta - Avance de Obra -->
+      <div class="mt-3 pt-3 border-t border-slate-100">
+        <div class="flex flex-col sm:flex-row items-center gap-4">
+
+          <!-- Chart.js Pie/Doughnut Chart -->
+          <div class="relative flex-shrink-0 flex items-center justify-center" style="width:150px;height:150px;">
+            <canvas id="pieChartCanvas"></canvas>
+            <!-- Texto central -->
+            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span id="pieTerminadoPct" class="text-[17px] font-black text-emerald-700 leading-none">0%</span>
+              <span class="text-[8px] text-slate-500 font-bold leading-none mt-0.5">terminado</span>
+            </div>
+          </div>
+
+          <!-- Leyenda -->
+          <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] font-medium text-slate-700 w-full">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+              <span>Terminados <strong id="pieLblTerminado" class="text-emerald-700">0%</strong></span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-sky-500 shrink-0"></span>
+              <span>Izado <strong id="pieLblIzado" class="text-sky-700">0%</strong></span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0"></span>
+              <span>Falta Resanar <strong id="pieLblFaltaSolado" class="text-purple-700">0%</strong></span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 shrink-0"></span>
+              <span>Excavados <strong id="pieLblExcavados" class="text-yellow-700">0%</strong></span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-orange-500 shrink-0"></span>
+              <span>En Corte <strong id="pieLblCorte" class="text-orange-700">0%</strong></span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-slate-300 shrink-0"></span>
+              <span>Sin Iniciar <strong id="pieLblPendiente" class="text-slate-600">0%</strong></span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -350,8 +393,8 @@
             <select id="selectStageFilter" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white text-slate-700 font-medium">
               <option value="all">Todas las Etapas</option>
               <option value="terminado">🟢 Solo Terminados</option>
-              <option value="izado_sin_solado">🔵 Solo Izado s/ Solado</option>
-              <option value="falta_solado">🟣 Solo Falta Solado</option>
+              <option value="izado_sin_solado">🔵 Solo Izado</option>
+              <option value="falta_solado">🟣 Solo Falta Resanar Vereda</option>
               <option value="excavado">🟡 Solo Excavados</option>
               <option value="corte">🟧 Solo En Corte</option>
               <option value="pendiente">⚪ Solo Sin Iniciar</option>
@@ -528,12 +571,12 @@
                 </span>
               </label>
 
-              <!-- Falta Solado -->
+              <!-- Falta Resanar Vereda -->
               <label class="flex items-center gap-1.5 p-2 rounded-xl border-2 border-purple-300 bg-white cursor-pointer hover:bg-purple-50 transition shadow-2xs select-none">
                 <input type="checkbox" id="chkStage_falta_solado" value="falta_solado" checked onchange="handleReportCheckboxChange()" class="w-4 h-4 rounded text-purple-600 focus:ring-purple-500">
                 <span class="text-[11px] font-bold text-purple-950 flex items-center gap-1">
                   <span class="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
-                  🟣 Falta Solado
+                  🟣 Falta Resanar Vereda
                 </span>
               </label>
 
@@ -826,12 +869,12 @@
 
             <button type="button" data-stage="izado_sin_solado" class="stage-btn p-2 rounded-xl border-2 border-sky-300 bg-sky-50 text-sky-900 flex items-center gap-1.5 font-bold text-xs hover:bg-sky-100 transition">
               <span class="w-2.5 h-2.5 rounded-full bg-sky-500 shrink-0"></span>
-              <span class="text-left leading-tight text-[11px]">🔵 Izado s/ Solado<br><span class="text-[9px] font-normal text-sky-700">Plantado</span></span>
+              <span class="text-left leading-tight text-[11px]">🔵 Izado<br><span class="text-[9px] font-normal text-sky-700">Plantado</span></span>
             </button>
 
             <button type="button" data-stage="falta_solado" class="stage-btn p-2 rounded-xl border-2 border-purple-300 bg-purple-50 text-purple-900 flex items-center gap-1.5 font-bold text-xs hover:bg-purple-100 transition">
               <span class="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0"></span>
-              <span class="text-left leading-tight text-[11px]">🟣 Falta Solado<br><span class="text-[9px] font-normal text-purple-700">Por vaciar</span></span>
+              <span class="text-left leading-tight text-[11px]">🟣 Falta Resanar Vereda<br><span class="text-[9px] font-normal text-purple-700">Por vaciar</span></span>
             </button>
 
             <button type="button" data-stage="excavado" class="stage-btn p-2 rounded-xl border-2 border-yellow-300 bg-yellow-50 text-yellow-900 flex items-center gap-1.5 font-bold text-xs hover:bg-yellow-100 transition">
@@ -970,8 +1013,8 @@
           <label for="batchStage" class="block text-[11px] font-bold text-slate-700 mb-1">Etapa a Asignar:</label>
           <select id="batchStage" required class="w-full px-3 py-2 text-xs font-bold rounded-xl border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white">
             <option value="terminado">🟢 Terminado (Verde en Plano UTM)</option>
-            <option value="izado_sin_solado">🔵 Izado sin Solado</option>
-            <option value="falta_solado">🟣 Falta Solado</option>
+            <option value="izado_sin_solado">🔵 Izado</option>
+            <option value="falta_solado">🟣 Falta Resanar Vereda</option>
             <option value="excavado">🟡 Excavado</option>
             <option value="corte">🟧 En Corte</option>
             <option value="pendiente">⚪ Sin Iniciar / Pendiente</option>

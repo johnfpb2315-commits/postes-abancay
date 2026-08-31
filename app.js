@@ -8,8 +8,8 @@ const STORAGE_KEY = 'postes_tracker_master_db_v3';
 // Definición oficial de etapas de obra
 const STAGES_CONFIG = {
   terminado: { name: 'Terminado', color: '#10b981', badgeBg: 'bg-emerald-100', badgeText: 'text-emerald-800', border: 'border-emerald-300', dot: 'bg-emerald-500' },
-  izado_sin_solado: { name: 'Izado sin Solado', color: '#0284c7', badgeBg: 'bg-sky-100', badgeText: 'text-sky-800', border: 'border-sky-300', dot: 'bg-sky-500' },
-  falta_solado: { name: 'Falta Solado', color: '#8b5cf6', badgeBg: 'bg-purple-100', badgeText: 'text-purple-800', border: 'border-purple-300', dot: 'bg-purple-500' },
+  izado_sin_solado: { name: 'Izado', color: '#0284c7', badgeBg: 'bg-sky-100', badgeText: 'text-sky-800', border: 'border-sky-300', dot: 'bg-sky-500' },
+  falta_solado: { name: 'Falta Resanar Vereda', color: '#8b5cf6', badgeBg: 'bg-purple-100', badgeText: 'text-purple-800', border: 'border-purple-300', dot: 'bg-purple-500' },
   excavado: { name: 'Excavado', color: '#eab308', badgeBg: 'bg-yellow-100', badgeText: 'text-yellow-800', border: 'border-yellow-300', dot: 'bg-yellow-500' },
   corte: { name: 'En Corte', color: '#f97316', badgeBg: 'bg-orange-100', badgeText: 'text-orange-800', border: 'border-orange-300', dot: 'bg-orange-500' },
   pendiente: { name: 'Sin Iniciar', color: '#64748b', badgeBg: 'bg-slate-100', badgeText: 'text-slate-700', border: 'border-slate-300', dot: 'bg-slate-400' }
@@ -234,7 +234,8 @@ function initPolesDatabase() {
             crew: itemSaved.crew || '',
             installedAt: itemSaved.installedAt || '',
             installNotes: itemSaved.installNotes || '',
-            photos: Array.isArray(itemSaved.photos) ? itemSaved.photos : []
+            photos: Array.isArray(itemSaved.photos) ? itemSaved.photos : [],
+            updatedAt: itemSaved.updatedAt || null
           };
         }
         return pole;
@@ -251,6 +252,16 @@ function initPolesDatabase() {
   populateCrewFilters();
 }
 
+// ------------------------------------------
+// HELPER: Estampa updatedAt al modificar un poste (para merge inteligente)
+// ------------------------------------------
+function markPoleUpdated(poleId) {
+  const pole = polesState.find(p => p.id === poleId);
+  if (pole) {
+    pole.updatedAt = new Date().toISOString();
+  }
+}
+
 function savePolesToStorage() {
   const saveMap = {};
   polesState.forEach(p => {
@@ -260,7 +271,8 @@ function savePolesToStorage() {
         crew: p.crew,
         installedAt: p.installedAt,
         installNotes: p.installNotes,
-        photos: p.photos || []
+        photos: p.photos || [],
+        updatedAt: p.updatedAt || new Date().toISOString()
       };
     }
   });
@@ -483,6 +495,69 @@ function updateDashboard() {
   setWidth('barFaltaSolado', (counts.falta_solado / total) * 100);
   setWidth('barExcavados', (counts.excavado / total) * 100);
   setWidth('barCorte', (counts.corte / total) * 100);
+  // Torta de porcentaje de avance — Chart.js
+  const updatePieChart = () => {
+    if (total === 0) return;
+
+    const labels   = ['Terminados', 'Izado s/Solado', 'Falta Resanar', 'Excavados', 'En Corte', 'Sin Iniciar'];
+    const data     = [counts.terminado, counts.izado_sin_solado, counts.falta_solado, counts.excavado, counts.corte, counts.pendiente];
+    const colors   = ['#10b981', '#0284c7', '#8b5cf6', '#eab308', '#f97316', '#cbd5e1'];
+
+    // Actualizar etiquetas de leyenda
+    const lblIds = ['pieLblTerminado','pieLblIzado','pieLblFaltaSolado','pieLblExcavados','pieLblCorte','pieLblPendiente'];
+    data.forEach((count, i) => {
+      const el = document.getElementById(lblIds[i]);
+      if (el) el.textContent = `${((count / total) * 100).toFixed(1)}%`;
+    });
+
+    const pctCenter = ((counts.terminado / total) * 100).toFixed(1);
+    const elCenter = document.getElementById('pieTerminadoPct');
+    if (elCenter) elCenter.textContent = `${pctCenter}%`;
+
+    const canvas = document.getElementById('pieChartCanvas');
+    if (!canvas) return;
+
+    // Destruir instancia previa si existe
+    if (window._pieChartInstance) {
+      window._pieChartInstance.destroy();
+      window._pieChartInstance = null;
+    }
+
+    const ctx = canvas.getContext('2d');
+    window._pieChartInstance = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: colors,
+          borderColor: '#fff',
+          borderWidth: 2,
+          hoverOffset: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        cutout: '62%',
+        animation: { animateRotate: true, duration: 700 },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const count = ctx.raw;
+                const pct   = ((count / total) * 100).toFixed(1);
+                return ` ${ctx.label}: ${count} postes (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  };
+  updatePieChart();
+
 
   renderPolesTable();
 
@@ -1142,6 +1217,7 @@ function handleSaveSingleInstall(e, shouldMoveNext = false) {
     pole.crew = crew;
     pole.installedAt = datetime;
     pole.installNotes = notes;
+    markPoleUpdated(id);
 
     savePolesToStorage();
     populateCrewFilters();
@@ -1187,6 +1263,7 @@ window.handleClearCurrentPole = function() {
     pole.installedAt = '';
     pole.installNotes = '';
     pole.photos = [];
+    markPoleUpdated(id);
 
     savePolesToStorage();
     populateCrewFilters();
@@ -1275,8 +1352,10 @@ if (inputPhoto) {
           date: new Date().toISOString()
         });
 
+        markPoleUpdated(poleId);
         renderPolePhotos(pole);
         savePolesToStorage();
+        autoSyncPushToCloud();
         showToast('📸 Foto adjunta guardada', 'success');
       };
       img.src = evt.target.result;
@@ -1291,8 +1370,10 @@ window.handleDeletePhoto = function(poleId, photoIndex) {
 
   if (confirm('¿Eliminar esta fotografía?')) {
     pole.photos.splice(photoIndex, 1);
+    markPoleUpdated(poleId);
     renderPolePhotos(pole);
     savePolesToStorage();
+    autoSyncPushToCloud();
     showToast('Foto eliminada', 'info');
   }
 };
@@ -1790,6 +1871,7 @@ function handleSaveBatchInstall(e) {
       pole.stage = stage;
       if (crew) pole.crew = crew;
       if (date) pole.installedAt = date;
+      markPoleUpdated(pole.id);
       updatedCount++;
     }
   });
@@ -1890,8 +1972,8 @@ window.handleExportExcel = function(onlyFiltered = false) {
 
   const stageKeys = [
     { key: 'terminado', label: '🟢 TERMINADOS (Completos)' },
-    { key: 'izado_sin_solado', label: '🔵 IZADO SIN SOLADO' },
-    { key: 'falta_solado', label: '🟣 FALTA SOLADO' },
+    { key: 'izado_sin_solado', label: '🔵 IZADO ' },
+    { key: 'falta_solado', label: '🟣 Falta Resanar Vereda' },
     { key: 'excavado', label: '🟡 EXCAVADOS' },
     { key: 'corte', label: '🟧 EN CORTE' },
     { key: 'pendiente', label: '⚪ SIN INICIAR / PENDIENTES' }
@@ -1982,8 +2064,8 @@ window.handleExportPDF = function(onlyFiltered = true) {
 
   const stageKeys = [
     { key: 'terminado', label: 'Terminado' },
-    { key: 'izado_sin_solado', label: 'Izado sin Solado' },
-    { key: 'falta_solado', label: 'Falta Solado' },
+    { key: 'izado_sin_solado', label: 'Izado ' },
+    { key: 'falta_solado', label: 'Falta Resanar Vereda' },
     { key: 'excavado', label: 'Excavado' },
     { key: 'corte', label: 'En Corte' },
     { key: 'pendiente', label: 'Sin Iniciar' }
@@ -2441,6 +2523,8 @@ window.handlePushDataToCloud = async function(silent = false) {
   updateLiveSyncBannerUI('uploading');
 
   try {
+    // BUG FIX #2: Subir TODOS los postes que tienen datos (no sólo los filtrados),
+    // incluyendo el timestamp por poste para el merge inteligente.
     const changedPoles = polesState
       .filter(p => (p.stage && p.stage !== 'pendiente') || p.crew || p.installedAt || p.installNotes || (p.photos && p.photos.length > 0))
       .map(p => ({
@@ -2450,7 +2534,8 @@ window.handlePushDataToCloud = async function(silent = false) {
         crew: p.crew || '',
         installedAt: p.installedAt || '',
         installNotes: p.installNotes || '',
-        photos: p.photos || []
+        photos: p.photos || [],
+        updatedAt: p.updatedAt || new Date().toISOString()
       }));
 
     const payload = {
@@ -2509,32 +2594,49 @@ function applyMergedRemotePoles(remotePolesMap, updatedAt = null, silent = true)
 
   polesState.forEach(localPole => {
     const remote = remotePolesMap.get(localPole.id) || remotePolesMap.get(localPole.name);
-    if (remote) {
-      let changed = false;
-      if (remote.stage && remote.stage !== localPole.stage) {
-        localPole.stage = remote.stage;
-        changed = true;
-      }
-      if (remote.crew !== undefined && remote.crew !== localPole.crew) {
-        localPole.crew = remote.crew || '';
-        changed = true;
-      }
-      if (remote.installedAt !== undefined && remote.installedAt !== localPole.installedAt) {
-        localPole.installedAt = remote.installedAt || '';
-        changed = true;
-      }
-      if (remote.installNotes !== undefined && remote.installNotes !== localPole.installNotes) {
-        localPole.installNotes = remote.installNotes || '';
-        changed = true;
-      }
-      if (remote.photos && Array.isArray(remote.photos) && remote.photos.length > 0) {
-        if (JSON.stringify(remote.photos) !== JSON.stringify(localPole.photos || [])) {
-          localPole.photos = remote.photos;
-          changed = true;
-        }
-      }
+    if (!remote) return;
 
-      if (changed) updatedCount++;
+    // BUG FIX #1: Merge inteligente por timestamp por poste.
+    // Solo se aplican datos remotos si el remoto es más reciente que el local.
+    // Si no hay timestamps (datos viejos), se aplica el remoto por compatibilidad.
+    const remoteTs = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
+    const localTs  = localPole.updatedAt ? new Date(localPole.updatedAt).getTime() : 0;
+
+    // Si el local tiene timestamp y es más reciente que el remoto, no sobreescribir
+    if (localTs > 0 && remoteTs > 0 && localTs >= remoteTs) {
+      return; // Este dispositivo tiene datos más nuevos — no tocar
+    }
+
+    // El remoto es más nuevo (o no hay timestamps para comparar): aplicar datos remotos
+    let changed = false;
+
+    if (remote.stage && remote.stage !== localPole.stage) {
+      localPole.stage = remote.stage;
+      changed = true;
+    }
+    if (remote.crew !== undefined && remote.crew !== localPole.crew) {
+      localPole.crew = remote.crew || '';
+      changed = true;
+    }
+    if (remote.installedAt !== undefined && remote.installedAt !== localPole.installedAt) {
+      localPole.installedAt = remote.installedAt || '';
+      changed = true;
+    }
+    if (remote.installNotes !== undefined && remote.installNotes !== localPole.installNotes) {
+      localPole.installNotes = remote.installNotes || '';
+      changed = true;
+    }
+    if (remote.photos && Array.isArray(remote.photos) && remote.photos.length > 0) {
+      if (JSON.stringify(remote.photos) !== JSON.stringify(localPole.photos || [])) {
+        localPole.photos = remote.photos;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      // Preservar el timestamp remoto para futuros merges
+      if (remote.updatedAt) localPole.updatedAt = remote.updatedAt;
+      updatedCount++;
     }
   });
 
