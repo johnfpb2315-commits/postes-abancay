@@ -2381,18 +2381,55 @@ function getActiveProjectCode() {
   return localStorage.getItem('postetrack_active_project_code') || 'ABANCAY-SEGURIDAD-2026';
 }
 
+const NTFY_SYNC_TOPIC = 'postetrack_abancay_2026_sync';
+const NTFY_SYNC_URL = `https://ntfy.sh/${NTFY_SYNC_TOPIC}`;
+let ntfyEventSource = null;
+
+function connectRealtimeSyncStream() {
+  if (ntfyEventSource) {
+    try { ntfyEventSource.close(); } catch (e) {}
+  }
+
+  try {
+    if (window.EventSource) {
+      ntfyEventSource = new EventSource(`${NTFY_SYNC_URL}/sse`);
+      
+      ntfyEventSource.onmessage = function(event) {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.message) {
+            const remotePayload = JSON.parse(data.message);
+            applyRemoteSyncPayload(remotePayload, true);
+          }
+        } catch (e) {}
+      };
+
+      ntfyEventSource.onerror = function() {
+        try { ntfyEventSource.close(); } catch (e) {}
+        ntfyEventSource = null;
+        setTimeout(connectRealtimeSyncStream, 5000);
+      };
+    }
+  } catch (err) {
+    console.warn('[EventSource Error]:', err);
+  }
+}
+
 function startLiveAutoSync() {
   if (autoSyncIntervalId) clearInterval(autoSyncIntervalId);
 
-  // Primera comprobación inmediata al iniciar la app
+  // 1. Conectar flujo en tiempo real (Sub-segundo instantáneo)
+  connectRealtimeSyncStream();
+
+  // 2. Recuperar últimos avances de la nube al abrir la app
   setTimeout(() => {
     handlePullDataFromCloud(true);
-  }, 500);
+  }, 300);
 
-  // Bucle de sondeo automático cada 3 segundos en segundo plano
+  // 3. Sondeo de respaldo cada 5 segundos
   autoSyncIntervalId = setInterval(() => {
     handlePullDataFromCloud(true);
-  }, 3000);
+  }, 5000);
 
   updateLiveSyncBannerUI('ready');
 }
@@ -2418,9 +2455,6 @@ window.handleTriggerManualSync = async function() {
   }
 };
 
-const CLOUD_SYNC_OBJECT_ID = 'ff808181a04ccf2d01a0558653b01c67';
-const CLOUD_SYNC_API_URL = 'https://api.restful-api.dev/objects/' + CLOUD_SYNC_OBJECT_ID;
-
 window.handlePushDataToCloud = async function(silent = false) {
   const projectCode = getActiveProjectCode();
   const btn = document.getElementById('btnPushToCloud');
@@ -2445,29 +2479,27 @@ window.handlePushDataToCloud = async function(silent = false) {
       }));
 
     const payload = {
-      name: "PosteTrack_Abancay_Sync",
-      data: {
-        projectCode: projectCode,
-        updatedAt: new Date().toISOString(),
-        totalProgressCount: changedPoles.length,
-        poles: changedPoles
-      }
+      projectCode: projectCode,
+      updatedAt: new Date().toISOString(),
+      senderDevice: (window.innerWidth >= 768 ? 'Laptop' : 'Celular') + '_' + Math.random().toString(36).substr(2, 4),
+      totalProgressCount: changedPoles.length,
+      poles: changedPoles
     };
 
-    lastCloudSyncTimestamp = payload.data.updatedAt;
+    lastCloudSyncTimestamp = payload.updatedAt;
 
-    const response = await fetch(CLOUD_SYNC_API_URL, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    const payloadStr = JSON.stringify(payload);
+
+    await fetch(NTFY_SYNC_URL, {
+      method: 'POST',
+      body: payloadStr,
+      headers: {
+        'Title': 'PosteTrack Sync',
+        'Tags': 'package'
+      }
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
     const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    
     const txtLast = document.getElementById('txtLastSyncTime');
     if (txtLast) txtLast.textContent = `Subido hoy a las ${timeStr}`;
 
@@ -2488,11 +2520,82 @@ window.handlePushDataToCloud = async function(silent = false) {
   }
 };
 
+function applyRemoteSyncPayload(remoteData, fromStream = false) {
+  if (!remoteData || !Array.isArray(remoteData.poles)) return;
+
+  if (remoteData.updatedAt && remoteData.updatedAt === lastCloudSyncTimestamp) {
+    return;
+  }
+
+  lastCloudSyncTimestamp = remoteData.updatedAt || new Date().toISOString();
+
+  let updatedCount = 0;
+  const remotePolesMap = new Map();
+  remoteData.poles.forEach(rp => remotePolesMap.set(rp.id, rp));
+
+  polesState.forEach(localPole => {
+    const remote = remotePolesMap.get(localPole.id);
+    if (remote) {
+      let changed = false;
+      if (remote.stage !== localPole.stage) {
+        localPole.stage = remote.stage;
+        changed = true;
+      }
+      if (remote.crew !== localPole.crew) {
+        localPole.crew = remote.crew || '';
+        changed = true;
+      }
+      if (remote.installedAt !== localPole.installedAt) {
+        localPole.installedAt = remote.installedAt || '';
+        changed = true;
+      }
+      if (remote.installNotes !== localPole.installNotes) {
+        localPole.installNotes = remote.installNotes || '';
+        changed = true;
+      }
+      if (JSON.stringify(remote.photos || []) !== JSON.stringify(localPole.photos || [])) {
+        localPole.photos = remote.photos || [];
+        changed = true;
+      }
+
+      if (changed) updatedCount++;
+    } else {
+      if (localPole.stage !== 'pendiente' || localPole.crew || (localPole.photos && localPole.photos.length > 0)) {
+        localPole.stage = 'pendiente';
+        localPole.crew = '';
+        localPole.installedAt = '';
+        localPole.installNotes = '';
+        localPole.photos = [];
+        updatedCount++;
+      }
+    }
+  });
+
+  savePolesToStorage();
+  populateCrewFilters();
+  updateDashboard();
+  renderPolesTable();
+
+  const repModal = document.getElementById('modalReports');
+  if (repModal && !repModal.classList.contains('hidden')) {
+    renderReportsView();
+  }
+
+  const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const txtLast = document.getElementById('txtLastSyncTime');
+  if (txtLast) txtLast.textContent = `Sincronizado hoy a las ${timeStr}`;
+
+  updateLiveSyncBannerUI('synced', timeStr);
+
+  if (updatedCount > 0) {
+    showToast(`⚡ Sincronización en vivo: ${updatedCount} poste(s) actualizados (${timeStr})`, 'info');
+  }
+}
+
 window.handlePullDataFromCloud = async function(silent = false) {
   if (isSyncingInProgress) return;
   isSyncingInProgress = true;
 
-  const projectCode = getActiveProjectCode();
   const btn = document.getElementById('btnPullFromCloud');
 
   if (!silent && btn) {
@@ -2501,90 +2604,30 @@ window.handlePullDataFromCloud = async function(silent = false) {
   }
 
   try {
-    const resp = await fetch(`${CLOUD_SYNC_API_URL}?_t=${Date.now()}`);
+    const resp = await fetch(`${NTFY_SYNC_URL}/json?since=24h&poll=1`);
     if (!resp.ok) return;
 
-    const json = await resp.json();
-    const remoteData = json.data || json;
+    const rawText = await resp.text();
+    const lines = rawText.split('\n').filter(l => l.trim());
 
-    if (!remoteData || !Array.isArray(remoteData.poles)) {
-      updateLiveSyncBannerUI('synced');
-      return;
+    let latestPayload = null;
+    for (const line of lines) {
+      try {
+        const obj = JSON.parse(line);
+        if (obj.message) {
+          const msgPayload = JSON.parse(obj.message);
+          if (msgPayload && msgPayload.poles) {
+            latestPayload = msgPayload;
+          }
+        }
+      } catch (e) {}
     }
 
-    if (silent && remoteData.updatedAt && remoteData.updatedAt === lastCloudSyncTimestamp) {
-      updateLiveSyncBannerUI('synced');
-      return;
-    }
-
-    lastCloudSyncTimestamp = remoteData.updatedAt || new Date().toISOString();
-
-    let updatedCount = 0;
-    const remotePolesMap = new Map();
-    remoteData.poles.forEach(rp => remotePolesMap.set(rp.id, rp));
-
-    polesState.forEach(localPole => {
-      const remote = remotePolesMap.get(localPole.id);
-      if (remote) {
-        let changed = false;
-        if (remote.stage !== localPole.stage) {
-          localPole.stage = remote.stage;
-          changed = true;
-        }
-        if (remote.crew !== localPole.crew) {
-          localPole.crew = remote.crew || '';
-          changed = true;
-        }
-        if (remote.installedAt !== localPole.installedAt) {
-          localPole.installedAt = remote.installedAt || '';
-          changed = true;
-        }
-        if (remote.installNotes !== localPole.installNotes) {
-          localPole.installNotes = remote.installNotes || '';
-          changed = true;
-        }
-        if (JSON.stringify(remote.photos || []) !== JSON.stringify(localPole.photos || [])) {
-          localPole.photos = remote.photos || [];
-          changed = true;
-        }
-
-        if (changed) updatedCount++;
-      } else {
-        if (localPole.stage !== 'pendiente' || localPole.crew || (localPole.photos && localPole.photos.length > 0)) {
-          localPole.stage = 'pendiente';
-          localPole.crew = '';
-          localPole.installedAt = '';
-          localPole.installNotes = '';
-          localPole.photos = [];
-          updatedCount++;
-        }
-      }
-    });
-
-    savePolesToStorage();
-    populateCrewFilters();
-    updateDashboard();
-    renderPolesTable();
-
-    const repModal = document.getElementById('modalReports');
-    if (repModal && !repModal.classList.contains('hidden')) {
-      renderReportsView();
-    }
-
-    const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const txtLast = document.getElementById('txtLastSyncTime');
-    if (txtLast) txtLast.textContent = `Sincronizado hoy a las ${timeStr}`;
-
-    updateLiveSyncBannerUI('synced', timeStr);
-
-    if (updatedCount > 0) {
+    if (latestPayload) {
+      applyRemoteSyncPayload(latestPayload, false);
       if (!silent) {
-        if (typeof confetti === 'function') {
-          confetti({ particleCount: 30, spread: 50, origin: { y: 0.6 } });
-        }
-        showToast(`🎉 ¡Sincronizado! Se actualizaron ${updatedCount} punto(s)`, 'success');
-      } else {
-        showToast(`⚡ Sincronización en vivo: ${updatedCount} poste(s) actualizados (${timeStr})`, 'info');
+        if (typeof confetti === 'function') confetti({ particleCount: 30, spread: 50, origin: { y: 0.6 } });
+        showToast(`🎉 ¡Sincronizado con éxito con la nube!`, 'success');
       }
     }
   } catch (err) {
