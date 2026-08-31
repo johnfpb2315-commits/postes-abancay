@@ -2621,8 +2621,12 @@ window.handlePullDataFromCloud = async function(silent = false) {
   if (isSyncingInProgress) return;
   isSyncingInProgress = true;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000);
+
   try {
-    const resp = await fetch(`${NTFY_SYNC_URL}/json?since=24h&poll=1`);
+    const resp = await fetch(`${NTFY_SYNC_URL}/json?since=24h`, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!resp.ok) return;
 
     const rawText = await resp.text();
@@ -2671,7 +2675,7 @@ window.handlePullDataFromCloud = async function(silent = false) {
       applyMergedRemotePoles(mergedRemoteMap, latestTime, silent);
     }
   } catch (err) {
-    console.error('[Cloud Pull Error]:', err);
+    clearTimeout(timeoutId);
   } finally {
     isSyncingInProgress = false;
   }
